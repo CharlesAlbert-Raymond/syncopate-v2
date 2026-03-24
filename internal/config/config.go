@@ -9,10 +9,19 @@ import (
 
 // Config holds the merged syncopate configuration.
 type Config struct {
-	WorktreeDir       string `yaml:"worktree_dir"`
-	OnCreate          string `yaml:"on_create"`
-	OnDestroy         string `yaml:"on_destroy"`
-	AutoDeleteBranch  *bool  `yaml:"auto_delete_branch,omitempty"`
+	WorktreeDir      string            `yaml:"worktree_dir"`
+	OnCreate         string            `yaml:"on_create"`
+	OnDestroy        string            `yaml:"on_destroy"`
+	AutoDeleteBranch *bool             `yaml:"auto_delete_branch,omitempty"`
+	Aliases          map[string]string `yaml:"aliases,omitempty"`
+}
+
+// AliasFor returns the alias for a branch, or empty string if none.
+func (c Config) AliasFor(branch string) string {
+	if c.Aliases == nil {
+		return ""
+	}
+	return c.Aliases[branch]
 }
 
 // ShouldDeleteBranch returns the resolved value of auto_delete_branch (default: false).
@@ -78,6 +87,16 @@ func merge(global, local Config) Config {
 	}
 	if local.AutoDeleteBranch != nil {
 		out.AutoDeleteBranch = local.AutoDeleteBranch
+	}
+
+	// Merge aliases: local overrides global per-key
+	if len(local.Aliases) > 0 {
+		if out.Aliases == nil {
+			out.Aliases = make(map[string]string)
+		}
+		for k, v := range local.Aliases {
+			out.Aliases[k] = v
+		}
 	}
 
 	return out

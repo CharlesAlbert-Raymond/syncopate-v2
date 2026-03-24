@@ -155,6 +155,16 @@ func hasSidebarPaneInSession(session string) bool {
 	return false
 }
 
+// FocusMainPane selects the main (non-sidebar) pane in the given session.
+// The sidebar is always pane 0 (left), so the main pane is the last one.
+func FocusMainPane(session string) {
+	panes, err := listPanes(session)
+	if err != nil || len(panes) < 2 {
+		return
+	}
+	_ = exec.Command("tmux", "select-pane", "-t", panes[len(panes)-1]).Run()
+}
+
 func listPanes(session string) ([]string, error) {
 	cmd := exec.Command("tmux", "list-panes", "-t", session, "-F", "#{pane_id}")
 	out, err := cmd.Output()

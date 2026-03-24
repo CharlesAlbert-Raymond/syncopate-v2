@@ -12,6 +12,7 @@ type Entry struct {
 	SessionName string
 	TmuxSession *tmux.Session
 	HasSession  bool
+	IsCurrent   bool // true if this is the worktree whose tmux session we're in
 }
 
 // Gather produces the full list of entries by joining worktrees with tmux sessions.
@@ -31,6 +32,9 @@ func Gather(repoRoot string) ([]Entry, error) {
 		sessionMap[sessions[i].Name] = &sessions[i]
 	}
 
+	// Detect which tmux session we're currently in
+	currentSession, _ := tmux.CurrentSessionName()
+
 	entries := make([]Entry, 0, len(wts))
 	for _, wt := range wts {
 		branch := wt.Branch
@@ -47,6 +51,7 @@ func Gather(repoRoot string) ([]Entry, error) {
 			SessionName: sessName,
 			TmuxSession: sess,
 			HasSession:  sess != nil,
+			IsCurrent:   sessName == currentSession,
 		})
 	}
 

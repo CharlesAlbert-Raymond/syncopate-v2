@@ -38,18 +38,22 @@ type Model struct {
 }
 
 func NewModel(repoRoot string, cfg config.Config) Model {
+	lm := newListModel()
+	lm.config = cfg
 	return Model{
 		currentView: viewList,
-		list:        newListModel(),
+		list:        lm,
 		repoRoot:    repoRoot,
 		config:      cfg,
 	}
 }
 
 func NewSidebarModel(repoRoot string, cfg config.Config) Model {
+	lm := newListModel()
+	lm.config = cfg
 	return Model{
 		currentView: viewList,
-		list:        newListModel(),
+		list:        lm,
 		repoRoot:    repoRoot,
 		config:      cfg,
 		sidebarMode: true,

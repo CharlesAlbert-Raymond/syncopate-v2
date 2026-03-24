@@ -11,8 +11,9 @@ var (
 	colorDanger    = lipgloss.Color("#EF4444") // red
 	colorMuted     = lipgloss.Color("#6B7280") // gray
 	colorText      = lipgloss.Color("#E5E7EB") // light gray
-	colorBg        = lipgloss.Color("#1F2937") // dark bg
-	colorBgAlt     = lipgloss.Color("#374151") // slightly lighter
+	colorBg         = lipgloss.Color("#1F2937") // dark bg
+	colorBgAlt      = lipgloss.Color("#374151") // slightly lighter
+	colorWarningDim = lipgloss.Color("#92400E") // dark amber — current + selected
 
 	// Styles
 	titleStyle = lipgloss.NewStyle().
@@ -77,4 +78,22 @@ var (
 			BorderForeground(colorWarning).
 			Padding(1, 2).
 			Width(50)
+
+	// Sidebar box styles
+	sidebarBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colorPrimary).
+			Padding(0, 1)
+
+	sidebarHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(colorPrimary)
+
+	currentMarkerStyle = lipgloss.NewStyle().
+				Foreground(colorWarning).
+				Bold(true)
+
+	helpBoxStyle = lipgloss.NewStyle().
+			Foreground(colorMuted).
+			Padding(0, 1)
 )
