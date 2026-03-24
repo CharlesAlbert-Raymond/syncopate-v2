@@ -123,3 +123,16 @@ func SwitchClient(name string) error {
 	}
 	return nil
 }
+
+// CapturePaneOutput captures the last N lines of terminal output from a session's pane.
+func CapturePaneOutput(session string, lines int) (string, error) {
+	if lines <= 0 {
+		lines = 50
+	}
+	cmd := exec.Command("tmux", "capture-pane", "-t", session, "-p", "-S", fmt.Sprintf("-%d", lines))
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("tmux capture-pane: %w", err)
+	}
+	return strings.TrimRight(string(out), "\n"), nil
+}

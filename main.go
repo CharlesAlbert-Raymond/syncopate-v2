@@ -10,32 +10,26 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/charles-albert-raymond/syncopate/internal/config"
+	syncmcp "github.com/charles-albert-raymond/syncopate/internal/mcp"
 	"github.com/charles-albert-raymond/syncopate/internal/tmux"
 	"github.com/charles-albert-raymond/syncopate/internal/tui"
 )
 
 func main() {
+	// Handle "mcp" subcommand before flag parsing
+	if len(os.Args) > 1 && os.Args[1] == "mcp" {
+		os.Args = append(os.Args[:1], os.Args[2:]...)
+		runMCP()
+		return
+	}
+
 	sidebarFlag := flag.Bool("sidebar", false, "run in compact sidebar mode (used internally)")
 	classicFlag := flag.Bool("classic", false, "run the original full-screen TUI")
 	rootFlag := flag.String("root", "", "repo root path (used internally by sidebar)")
 	flag.Parse()
 
-	repoRoot := *rootFlag
-	if repoRoot == "" {
-		var err error
-		repoRoot, err = findGitRoot()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			fmt.Fprintf(os.Stderr, "syncopate must be run from within a git repository.\n")
-			os.Exit(1)
-		}
-	}
-
-	cfg, err := config.Load(repoRoot)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not load .syncopate.yaml: %v\n", err)
-		cfg = config.Config{WorktreeDir: ".."}
-	}
+	repoRoot := resolveRepoRoot(*rootFlag)
+	cfg := loadConfig(repoRoot)
 
 	switch {
 	case *sidebarFlag:
@@ -94,6 +88,41 @@ func launch(repoRoot string) {
 		fmt.Println("  Tip: focus the sidebar pane with Ctrl-b + ←")
 		fmt.Println("  Or run 'syncopate --classic' for full-screen mode.")
 	}
+}
+
+func runMCP() {
+	rootFlag := flag.String("root", "", "repo root path")
+	flag.Parse()
+
+	repoRoot := resolveRepoRoot(*rootFlag)
+	cfg := loadConfig(repoRoot)
+
+	if err := syncmcp.Serve(repoRoot, cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "MCP server error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func resolveRepoRoot(flagValue string) string {
+	if flagValue != "" {
+		return flagValue
+	}
+	root, err := findGitRoot()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "syncopate must be run from within a git repository.\n")
+		os.Exit(1)
+	}
+	return root
+}
+
+func loadConfig(repoRoot string) config.Config {
+	cfg, err := config.Load(repoRoot)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not load .syncopate.yaml: %v\n", err)
+		cfg = config.Config{WorktreeDir: ".."}
+	}
+	return cfg
 }
 
 func findGitRoot() (string, error) {
