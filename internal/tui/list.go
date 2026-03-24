@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/charles-albert-raymond/syncopate/internal/config"
 	"github.com/charles-albert-raymond/syncopate/internal/state"
 	"github.com/charles-albert-raymond/syncopate/internal/tmux"
 )
@@ -25,12 +26,14 @@ func (t *tmuxExecCmd) SetStdout(w io.Writer) { t.cmd.Stdout = w }
 func (t *tmuxExecCmd) SetStderr(w io.Writer) { t.cmd.Stderr = w }
 
 type listModel struct {
-	entries  []state.Entry
-	cursor   int
-	width    int
-	height   int
-	message  string
-	msgStyle lipgloss.Style
+	entries       []state.Entry
+	cursor        int
+	cursorInitd   bool // true after cursor has been placed on current worktree
+	width         int
+	height        int
+	message       string
+	msgStyle      lipgloss.Style
+	config        config.Config
 }
 
 func newListModel() listModel {
@@ -120,7 +123,16 @@ func (m listModel) UpdateSidebar(msg tea.Msg, repoRoot string) (listModel, tea.C
 	switch msg := msg.(type) {
 	case entriesMsg:
 		m.entries = []state.Entry(msg)
-		if m.cursor >= len(m.entries) {
+		if !m.cursorInitd {
+			// On first load, place cursor on the current worktree
+			for i, e := range m.entries {
+				if e.IsCurrent {
+					m.cursor = i
+					break
+				}
+			}
+			m.cursorInitd = true
+		} else if m.cursor >= len(m.entries) {
 			m.cursor = max(0, len(m.entries)-1)
 		}
 		return m, nil
@@ -170,6 +182,9 @@ func (m listModel) UpdateSidebar(msg tea.Msg, repoRoot string) (listModel, tea.C
 				return m, nil
 			}
 
+			// Focus the main work pane (not the sidebar) in the target session
+			tmux.FocusMainPane(sessionName)
+
 			m.message = fmt.Sprintf("→ %s", entry.BranchShort)
 			m.msgStyle = successStyle
 			return m, fetchEntries(repoRoot)
@@ -178,84 +193,129 @@ func (m listModel) UpdateSidebar(msg tea.Msg, repoRoot string) (listModel, tea.C
 	return m, nil
 }
 
-// ViewCompact renders a narrow sidebar-friendly view.
+// ViewCompact renders a narrow sidebar-friendly view with per-worktree cards.
 func (m listModel) ViewCompact(width int) string {
 	if width == 0 {
 		width = 28
 	}
-	innerWidth := width - 2 // padding
+	boxWidth := width - 2 // leave 1 char margin each side
 
-	var b strings.Builder
+	var parts []string
 
 	// Header
-	b.WriteString(titleStyle.Render(" syncopate"))
-	b.WriteString("\n")
-	b.WriteString(lipgloss.NewStyle().Foreground(colorMuted).Render(" " + strings.Repeat("─", innerWidth-1)))
-	b.WriteString("\n")
+	parts = append(parts, sidebarHeaderStyle.Render(" syncopate"))
 
 	if len(m.entries) == 0 {
-		b.WriteString(subtitleStyle.Render(" No worktrees."))
-		b.WriteString("\n")
-		b.WriteString(helpStyle.Render(" c create • q quit"))
-		return b.String()
+		card := sidebarBoxStyle.
+			Width(boxWidth).
+			BorderForeground(colorMuted).
+			Render(subtitleStyle.Render("No worktrees."))
+		parts = append(parts, card)
+		parts = append(parts, helpBoxStyle.Render(
+			lipgloss.NewStyle().Foreground(colorMuted).Render("c create • q quit"),
+		))
+		return strings.Join(parts, "\n")
 	}
 
-	// Entries — compact: cursor + status + branch name
-	maxBranch := innerWidth - 5 // "▸ ● " = 4 chars + space
+	// Inner width inside card: boxWidth - border(2) - padding(2) = boxWidth - 4
+	innerWidth := boxWidth - 4
+
+	// Render a card for each worktree
 	for i, entry := range m.entries {
-		cursor := " "
-		if i == m.cursor {
-			cursor = "▸"
+		// Resolve display name: alias > branch
+		alias := m.config.AliasFor(entry.BranchShort)
+		displayName := alias
+		if displayName == "" {
+			displayName = entry.BranchShort
+		}
+		if entry.Worktree.IsMain {
+			displayName += " ★"
 		}
 
-		// Session status indicator
-		var indicator string
+		// Session status dot
+		var dot string
 		if entry.HasSession {
 			if entry.TmuxSession.Attached {
-				indicator = sessionAttachedStyle.Render("●")
+				dot = sessionAttachedStyle.Render("●")
 			} else {
-				indicator = sessionActiveStyle.Render("●")
+				dot = sessionActiveStyle.Render("●")
 			}
 		} else {
-			indicator = sessionInactiveStyle.Render("○")
+			dot = sessionInactiveStyle.Render("○")
 		}
 
-		// Branch name
-		branch := entry.BranchShort
+		// Card border color based on state
+		borderColor := colorMuted
+		isSelected := i == m.cursor
+		if entry.IsCurrent && isSelected {
+			borderColor = colorWarningDim
+		} else if entry.IsCurrent {
+			borderColor = colorWarning
+		} else if isSelected {
+			borderColor = colorSecondary
+		}
+
+		// Build card content
+		var lines []string
+
+		// Line 1: display name + status dot
+		nameStyle := branchStyle
 		if entry.Worktree.IsMain {
-			branch += " ★"
+			nameStyle = mainBranchStyle
 		}
-		branch = truncate(branch, maxBranch)
-
-		bStyle := branchStyle
-		if entry.Worktree.IsMain {
-			bStyle = mainBranchStyle
+		if entry.IsCurrent && isSelected {
+			nameStyle = lipgloss.NewStyle().Foreground(colorWarningDim).Bold(true)
+		} else if entry.IsCurrent {
+			nameStyle = currentMarkerStyle
 		}
 
-		row := fmt.Sprintf(" %s %s %s", cursor, indicator, bStyle.Render(branch))
-
-		if i == m.cursor {
-			b.WriteString(selectedRowStyle.Render(
-				lipgloss.NewStyle().Width(width).Render(row),
-			))
-		} else {
-			b.WriteString(row)
+		name := truncate(displayName, innerWidth-2) // leave room for dot
+		nameLine := nameStyle.Render(name)
+		// Right-align the dot
+		nameLen := lipgloss.Width(nameLine)
+		gap := innerWidth - nameLen - 1
+		if gap < 1 {
+			gap = 1
 		}
-		b.WriteString("\n")
+		nameLine = nameLine + strings.Repeat(" ", gap) + dot
+		lines = append(lines, nameLine)
+
+		// Line 2: show branch name when an alias is set (so you can see the real branch)
+		if alias != "" {
+			branchLine := pathStyle.Render(truncate(entry.BranchShort, innerWidth))
+			lines = append(lines, branchLine)
+		}
+
+		// Current worktree marker
+		if entry.IsCurrent {
+			lines = append(lines, currentMarkerStyle.Render("▶ current"))
+		}
+
+		content := strings.Join(lines, "\n")
+
+		card := sidebarBoxStyle.
+			Width(boxWidth).
+			BorderForeground(borderColor).
+			Render(content)
+
+		parts = append(parts, card)
 	}
 
 	// Status message
 	if m.message != "" {
-		b.WriteString("\n")
-		b.WriteString(" " + m.msgStyle.Render(truncate(m.message, innerWidth)))
+		parts = append(parts, helpBoxStyle.Render(
+			m.msgStyle.Render(truncate(m.message, innerWidth)),
+		))
 	}
 
-	b.WriteString("\n")
-	b.WriteString(helpStyle.Render(" ↵ open • c new • d del"))
-	b.WriteString("\n")
-	b.WriteString(helpStyle.Render(" ? cfg  • q quit"))
+	// Help footer
+	parts = append(parts, helpBoxStyle.Render(
+		lipgloss.NewStyle().Foreground(colorMuted).Render("↵ open · c new · d del")+
+			"\n"+
+			lipgloss.NewStyle().Foreground(colorMuted).Render("? cfg  · q quit"),
+	))
 
-	return b.String()
+	return strings.Join(parts, "\n")
 }
 
 func (m listModel) View() string {
