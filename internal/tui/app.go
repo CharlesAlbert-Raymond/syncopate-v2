@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/charles-albert-raymond/syncopate/internal/config"
+	"github.com/charles-albert-raymond/syncopate/internal/tmux"
 )
 
 const refreshInterval = 2 * time.Second
@@ -22,6 +23,7 @@ const (
 
 type errMsg struct{ error }
 type tickMsg time.Time
+type popupDoneMsg struct{}
 
 type Model struct {
 	currentView view
@@ -80,6 +82,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.FocusMsg:
+		if m.sidebarMode {
+			m.list.resetCursorOnNext = true
+		}
+		return m, fetchEntries(m.repoRoot)
+
+	case tea.BlurMsg:
+		if m.sidebarMode {
+			// When sidebar loses focus, reset cursor to the current worktree
+			m.list.resetCursorToCurrent()
+			return m, unfocusSidebar()
+		}
+		return m, nil
+
+	case popupDoneMsg:
 		return m, fetchEntries(m.repoRoot)
 
 	case tickMsg:
@@ -126,6 +142,9 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "c":
+			if m.sidebarMode {
+				return m, launchCreatePopup(m.repoRoot)
+			}
 			m.currentView = viewCreate
 			m.create = newCreateModel(m.repoRoot, m.config)
 			return m, m.create.branchInput.Focus()
@@ -137,6 +156,9 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.list.msgStyle = errorStyle
 					return m, nil
 				}
+				if m.sidebarMode {
+					return m, launchDeletePopup(m.repoRoot, entry.BranchShort)
+				}
 				m.currentView = viewConfirmDelete
 				m.confirm = newConfirmModel(entry, m.repoRoot, m.config)
 				return m, nil
@@ -147,6 +169,10 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentView = viewConfig
 			m.configView = newConfigViewModel(m.config, m.repoRoot)
 			return m, nil
+		case "esc":
+			if m.sidebarMode {
+				return m, unfocusSidebar()
+			}
 		}
 	}
 
@@ -240,4 +266,34 @@ func (m Model) View() string {
 		MaxWidth(m.width).
 		MaxHeight(m.height).
 		Render(content)
+}
+
+func launchCreatePopup(repoRoot string) tea.Cmd {
+	return func() tea.Msg {
+		_ = tmux.LaunchPopup(
+			[]string{"--popup-create", "--root", repoRoot},
+			60, 20, "Create Worktree",
+		)
+		return popupDoneMsg{}
+	}
+}
+
+func launchDeletePopup(repoRoot string, branch string) tea.Cmd {
+	return func() tea.Msg {
+		_ = tmux.LaunchPopup(
+			[]string{"--popup-delete", "--root", repoRoot, "--branch", branch},
+			60, 20, "Delete Worktree",
+		)
+		return popupDoneMsg{}
+	}
+}
+
+func unfocusSidebar() tea.Cmd {
+	return func() tea.Msg {
+		session, err := tmux.CurrentSessionName()
+		if err == nil {
+			tmux.FocusMainPane(session)
+		}
+		return nil
+	}
 }
