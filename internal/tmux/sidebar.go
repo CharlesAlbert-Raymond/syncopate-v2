@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/charles-albert-raymond/syncopate/internal/config"
 )
 
 const defaultSidebarWidth = 28
@@ -40,13 +42,25 @@ func DetectState() LaunchState {
 }
 
 // CreateSessionAndAttach creates a new tmux session at repoRoot with sidebar, then attaches.
-func CreateSessionAndAttach(repoRoot string, sidebarWidth int) error {
+func CreateSessionAndAttach(repoRoot string, sidebarWidth int, cfg config.Config) error {
 	// Use the repo directory name as the session base name
 	sessName := SessionNameFor("main")
 
 	cmd := exec.Command("tmux", "new-session", "-d", "-s", sessName, "-c", repoRoot)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("tmux new-session: %s: %w", string(out), err)
+	}
+
+	// Apply layout before sidebar so pane indices are predictable
+	if layout := cfg.DefaultLayout(); layout != nil {
+		if err := ApplyLayout(sessName, layout); err != nil {
+			return fmt.Errorf("apply layout: %w", err)
+		}
+	}
+
+	// Apply theme (border colors, labels)
+	if err := ApplyTheme(sessName, cfg.Theme); err != nil {
+		return fmt.Errorf("apply theme: %w", err)
 	}
 
 	if err := addSidebar(sessName, repoRoot, sidebarWidth); err != nil {

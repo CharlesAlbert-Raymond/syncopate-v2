@@ -97,6 +97,10 @@ func (m listModel) Update(msg tea.Msg, repoRoot string) (listModel, tea.Cmd) {
 					m.msgStyle = errorStyle
 					return m, nil
 				}
+				if layout := m.config.DefaultLayout(); layout != nil {
+					_ = tmux.ApplyLayout(sessionName, layout)
+				}
+				_ = tmux.ApplyTheme(sessionName, m.config.Theme)
 			}
 
 			if tmux.IsInsideTmux() {
@@ -173,6 +177,10 @@ func (m listModel) UpdateSidebar(msg tea.Msg, repoRoot string) (listModel, tea.C
 					m.msgStyle = errorStyle
 					return m, nil
 				}
+				if layout := m.config.DefaultLayout(); layout != nil {
+					_ = tmux.ApplyLayout(sessionName, layout)
+				}
+				_ = tmux.ApplyTheme(sessionName, m.config.Theme)
 			}
 
 			// Ensure the target session has a sidebar pane

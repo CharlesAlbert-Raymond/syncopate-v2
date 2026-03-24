@@ -7,6 +7,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Pane defines a single pane in a layout.
+type Pane struct {
+	Command string `yaml:"command"`
+	Split   string `yaml:"split,omitempty"`   // "horizontal" or "vertical"
+	Size    string `yaml:"size,omitempty"`     // e.g. "30%"
+}
+
+// Layout defines a named window layout with multiple panes.
+type Layout struct {
+	Panes []Pane `yaml:"panes"`
+}
+
+// Theme holds tmux border color configuration.
+type Theme struct {
+	PaneBorder       string `yaml:"pane_border,omitempty"`
+	PaneBorderActive string `yaml:"pane_border_active,omitempty"`
+	PaneBorderLabels bool   `yaml:"pane_border_labels,omitempty"`
+}
+
 // Config holds the merged syncopate configuration.
 type Config struct {
 	WorktreeDir      string            `yaml:"worktree_dir"`
@@ -14,6 +33,20 @@ type Config struct {
 	OnDestroy        string            `yaml:"on_destroy"`
 	AutoDeleteBranch *bool             `yaml:"auto_delete_branch,omitempty"`
 	Aliases          map[string]string `yaml:"aliases,omitempty"`
+	Theme            *Theme            `yaml:"theme,omitempty"`
+	Layouts          map[string]Layout `yaml:"layouts,omitempty"`
+}
+
+// DefaultLayout returns the "default" layout, or nil if none is configured.
+func (c Config) DefaultLayout() *Layout {
+	if c.Layouts == nil {
+		return nil
+	}
+	l, ok := c.Layouts["default"]
+	if !ok {
+		return nil
+	}
+	return &l
 }
 
 // AliasFor returns the alias for a branch, or empty string if none.
@@ -96,6 +129,21 @@ func merge(global, local Config) Config {
 		}
 		for k, v := range local.Aliases {
 			out.Aliases[k] = v
+		}
+	}
+
+	// Theme: local overrides global entirely if set
+	if local.Theme != nil {
+		out.Theme = local.Theme
+	}
+
+	// Layouts: local overrides global per-key
+	if len(local.Layouts) > 0 {
+		if out.Layouts == nil {
+			out.Layouts = make(map[string]Layout)
+		}
+		for k, v := range local.Layouts {
+			out.Layouts[k] = v
 		}
 	}
 

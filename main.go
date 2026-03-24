@@ -57,17 +57,17 @@ func main() {
 		}
 
 	default:
-		launch(repoRoot)
+		launch(repoRoot, cfg)
 	}
 }
 
-func launch(repoRoot string) {
+func launch(repoRoot string, cfg config.Config) {
 	state := tmux.DetectState()
 
 	switch state {
 	case tmux.OutsideNoSession:
 		// Not in tmux, nothing exists — create session with sidebar, attach
-		if err := tmux.CreateSessionAndAttach(repoRoot, 28); err != nil {
+		if err := tmux.CreateSessionAndAttach(repoRoot, 28, cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}

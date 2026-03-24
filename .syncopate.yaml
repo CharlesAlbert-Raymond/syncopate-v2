@@ -5,3 +5,16 @@ worktree_dir: ".worktrees"
 on_create: ""
 on_destroy: ""
 auto_delete_branch: true
+
+theme:
+  pane_border: "#3a3a3a"
+  pane_border_active: "#7aa2f7"
+  pane_border_labels: true
+
+layouts:
+  default:
+    panes:
+      - command: ""
+      - command: ""
+        split: horizontal
+        size: "30%"

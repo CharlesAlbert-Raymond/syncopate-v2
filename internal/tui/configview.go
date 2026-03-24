@@ -83,6 +83,43 @@ func (m configViewModel) View() string {
 		}
 	}
 
+	// Theme
+	if m.config.Theme != nil {
+		b.WriteString("\n")
+		b.WriteString(headerStyle.Render("Theme"))
+		b.WriteString("\n")
+		renderField("pane_border", m.config.Theme.PaneBorder)
+		renderField("pane_border_active", m.config.Theme.PaneBorderActive)
+		if m.config.Theme.PaneBorderLabels {
+			renderField("pane_border_labels", "true")
+		}
+	}
+
+	// Layouts
+	if len(m.config.Layouts) > 0 {
+		b.WriteString("\n")
+		b.WriteString(headerStyle.Render("Layouts"))
+		b.WriteString("\n")
+		for name, layout := range m.config.Layouts {
+			b.WriteString(labelStyle.Render("  " + name + ":"))
+			b.WriteString(valueStyle.Render(fmt.Sprintf("%d pane(s)", len(layout.Panes))))
+			b.WriteString("\n")
+			for i, pane := range layout.Panes {
+				split := pane.Split
+				if split == "" {
+					split = "horizontal"
+				}
+				size := pane.Size
+				if size == "" {
+					size = "auto"
+				}
+				detail := fmt.Sprintf("    [%d] %s (%s, %s)", i, pane.Command, split, size)
+				b.WriteString(emptyStyle.Render(detail))
+				b.WriteString("\n")
+			}
+		}
+	}
+
 	b.WriteString("\n")
 	b.WriteString(helpStyle.Render(" ? close • esc close"))
 

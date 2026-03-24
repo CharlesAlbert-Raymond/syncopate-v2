@@ -90,6 +90,18 @@ func (m createModel) Update(msg tea.Msg) (createModel, tea.Cmd) {
 				return m, nil
 			}
 
+			// Apply layout and theme
+			if layout := m.config.DefaultLayout(); layout != nil {
+				if err := tmux.ApplyLayout(sessName, layout); err != nil {
+					m.err = fmt.Sprintf("Layout failed: %v", err)
+					return m, nil
+				}
+			}
+			if err := tmux.ApplyTheme(sessName, m.config.Theme); err != nil {
+				m.err = fmt.Sprintf("Theme failed: %v", err)
+				return m, nil
+			}
+
 			// Run on_create hook in the tmux session
 			if err := config.RunHookInTmux(sessName, m.config.OnCreate, branch, wtPath); err != nil {
 				m.err = fmt.Sprintf("Created but on_create hook failed: %v", err)
