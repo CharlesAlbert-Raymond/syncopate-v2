@@ -16,3 +16,9 @@ on_destroy: "./scripts/cleanup-worktree.sh"
 # Automatically delete the git branch when removing a worktree (default: false).
 # Can be toggled per-deletion in the confirm dialog with 'b'.
 auto_delete_branch: false
+
+# Aliases give worktrees a human-friendly display name in the sidebar.
+# Map branch names to short labels.
+aliases:
+  main: "Main"
+  feature/my-branch: "My Feature"

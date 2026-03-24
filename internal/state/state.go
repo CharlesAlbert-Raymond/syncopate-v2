@@ -13,6 +13,7 @@ type Entry struct {
 	TmuxSession *tmux.Session
 	HasSession  bool
 	Ports       []int // TCP ports being listened on in this session
+	IsCurrent   bool  // true if this is the worktree whose tmux session we're in
 }
 
 // SessionPorts holds port info for a non-syncopate tmux session.
@@ -51,6 +52,9 @@ func Gather(repoRoot string) (*GatherResult, error) {
 	// Track which sessions are syncopate-managed
 	syncopateSessions := make(map[string]bool)
 
+	// Detect which tmux session we're currently in
+	currentSession, _ := tmux.CurrentSessionName()
+
 	entries := make([]Entry, 0, len(wts))
 	for _, wt := range wts {
 		branch := wt.Branch
@@ -69,6 +73,7 @@ func Gather(repoRoot string) (*GatherResult, error) {
 			TmuxSession: sess,
 			HasSession:  sess != nil,
 			Ports:       portsBySession[sessName],
+			IsCurrent:   sessName == currentSession,
 		})
 	}
 

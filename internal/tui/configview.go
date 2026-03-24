@@ -72,6 +72,17 @@ func (m configViewModel) View() string {
 	}
 	renderField("auto_delete_branch", deleteBranchVal)
 
+	if len(m.config.Aliases) > 0 {
+		b.WriteString("\n")
+		b.WriteString(headerStyle.Render("Aliases"))
+		b.WriteString("\n")
+		for branch, alias := range m.config.Aliases {
+			b.WriteString(labelStyle.Render("  " + branch + ":"))
+			b.WriteString(valueStyle.Render(alias))
+			b.WriteString("\n")
+		}
+	}
+
 	b.WriteString("\n")
 	b.WriteString(helpStyle.Render(" ? close • esc close"))
 
