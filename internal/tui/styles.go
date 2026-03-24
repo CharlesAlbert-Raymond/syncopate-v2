@@ -52,6 +52,9 @@ var (
 	pathStyle = lipgloss.NewStyle().
 			Foreground(colorMuted)
 
+	portStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#F472B6")) // pink — stands out from other indicators
+
 	helpStyle = lipgloss.NewStyle().
 			Foreground(colorMuted).
 			MarginTop(1)
