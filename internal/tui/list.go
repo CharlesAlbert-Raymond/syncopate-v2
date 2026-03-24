@@ -5,6 +5,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,6 +28,7 @@ func (t *tmuxExecCmd) SetStderr(w io.Writer) { t.cmd.Stderr = w }
 
 type listModel struct {
 	entries       []state.Entry
+	otherPorts    []state.SessionPorts // non-syncopate sessions with ports
 	cursor        int
 	cursorInitd   bool // true after cursor has been placed on current worktree
 	width         int
@@ -40,23 +42,27 @@ func newListModel() listModel {
 	return listModel{}
 }
 
-type entriesMsg []state.Entry
+type entriesMsg struct {
+	entries    []state.Entry
+	otherPorts []state.SessionPorts
+}
 type attachMsg struct{ session string }
 
 func fetchEntries(repoRoot string) tea.Cmd {
 	return func() tea.Msg {
-		entries, err := state.Gather(repoRoot)
+		result, err := state.Gather(repoRoot)
 		if err != nil {
 			return errMsg{err}
 		}
-		return entriesMsg(entries)
+		return entriesMsg{entries: result.Entries, otherPorts: result.OtherPorts}
 	}
 }
 
 func (m listModel) Update(msg tea.Msg, repoRoot string) (listModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case entriesMsg:
-		m.entries = []state.Entry(msg)
+		m.entries = msg.entries
+		m.otherPorts = msg.otherPorts
 		if m.cursor >= len(m.entries) {
 			m.cursor = max(0, len(m.entries)-1)
 		}
@@ -122,7 +128,8 @@ func (m listModel) Update(msg tea.Msg, repoRoot string) (listModel, tea.Cmd) {
 func (m listModel) UpdateSidebar(msg tea.Msg, repoRoot string) (listModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case entriesMsg:
-		m.entries = []state.Entry(msg)
+		m.entries = msg.entries
+		m.otherPorts = msg.otherPorts
 		if !m.cursorInitd {
 			// On first load, place cursor on the current worktree
 			for i, e := range m.entries {
@@ -286,6 +293,12 @@ func (m listModel) ViewCompact(width int) string {
 			lines = append(lines, branchLine)
 		}
 
+		// Show listening ports
+		if len(entry.Ports) > 0 {
+			portsStr := formatPorts(entry.Ports)
+			lines = append(lines, portStyle.Render(truncate(portsStr, innerWidth)))
+		}
+
 		// Current worktree marker
 		if entry.IsCurrent {
 			lines = append(lines, currentMarkerStyle.Render("▶ current"))
@@ -299,6 +312,22 @@ func (m listModel) ViewCompact(width int) string {
 			Render(content)
 
 		parts = append(parts, card)
+	}
+
+	// Other tmux sessions with ports
+	if len(m.otherPorts) > 0 {
+		parts = append(parts, lipgloss.NewStyle().Foreground(colorMuted).Render(" other sessions"))
+		for _, sp := range m.otherPorts {
+			name := truncate(sp.Name, innerWidth-2)
+			portsStr := formatPorts(sp.Ports)
+			otherContent := lipgloss.NewStyle().Foreground(colorMuted).Render(name) + "\n" +
+				portStyle.Render(truncate(portsStr, innerWidth))
+			otherCard := sidebarBoxStyle.
+				Width(boxWidth).
+				BorderForeground(colorMuted).
+				Render(otherContent)
+			parts = append(parts, otherCard)
+		}
 	}
 
 	// Status message
@@ -335,10 +364,10 @@ func (m listModel) View() string {
 	b.WriteString("\n\n")
 
 	// Column header
-	header := fmt.Sprintf("  %-3s %-25s %-14s %s", "", "BRANCH", "SESSION", "PATH")
+	header := fmt.Sprintf("  %-3s %-25s %-14s %-16s %s", "", "BRANCH", "SESSION", "PORTS", "PATH")
 	b.WriteString(lipgloss.NewStyle().Foreground(colorMuted).Bold(true).Render(header))
 	b.WriteString("\n")
-	b.WriteString(lipgloss.NewStyle().Foreground(colorMuted).Render("  " + strings.Repeat("─", 70)))
+	b.WriteString(lipgloss.NewStyle().Foreground(colorMuted).Render("  " + strings.Repeat("─", 85)))
 	b.WriteString("\n")
 
 	// Entries
@@ -369,11 +398,19 @@ func (m listModel) View() string {
 			sessStr = sessionInactiveStyle.Render("○ none        ")
 		}
 
+		// Ports
+		var portsStr string
+		if len(entry.Ports) > 0 {
+			portsStr = portStyle.Render(fmt.Sprintf("%-16s", truncate(formatPorts(entry.Ports), 16)))
+		} else {
+			portsStr = lipgloss.NewStyle().Foreground(colorMuted).Render(fmt.Sprintf("%-16s", "–"))
+		}
+
 		// Path (shortened)
 		shortPath := shortenPath(entry.Worktree.Path)
 		pathStr := pathStyle.Render(shortPath)
 
-		row := fmt.Sprintf("%s%s %s %s", cursor, branchStr, sessStr, pathStr)
+		row := fmt.Sprintf("%s%s %s %s %s", cursor, branchStr, sessStr, portsStr, pathStr)
 
 		if i == m.cursor {
 			b.WriteString(selectedRowStyle.Render(row))
@@ -405,6 +442,14 @@ func shortenPath(p string) string {
 	base := filepath.Base(p)
 	parent := filepath.Base(dir)
 	return filepath.Join("…", parent, base)
+}
+
+func formatPorts(ports []int) string {
+	parts := make([]string, len(ports))
+	for i, p := range ports {
+		parts[i] = ":" + strconv.Itoa(p)
+	}
+	return strings.Join(parts, " ")
 }
 
 func truncate(s string, maxLen int) string {
