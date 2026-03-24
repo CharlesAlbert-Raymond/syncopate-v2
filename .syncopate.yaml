@@ -1,0 +1,6 @@
+# Syncopate local config for this repo.
+# Overrides ~/.config/syncopate/config.yaml
+
+worktree_dir: ".worktrees"
+on_create: ""
+on_destroy: ""
