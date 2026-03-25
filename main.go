@@ -96,12 +96,17 @@ func main() {
 }
 
 func launch(repoRoot string, cfg config.Config) {
+	sidebarWidth := cfg.SidebarWidth
+	if sidebarWidth == "" {
+		sidebarWidth = "28"
+	}
+
 	state := tmux.DetectState()
 
 	switch state {
 	case tmux.OutsideNoSession:
 		// Not in tmux, nothing exists — create session with sidebar, attach
-		if err := tmux.CreateSessionAndAttach(repoRoot, 28, cfg); err != nil {
+		if err := tmux.CreateSessionAndAttach(repoRoot, sidebarWidth, cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -121,7 +126,7 @@ func launch(repoRoot string, cfg config.Config) {
 		if sess, err := tmux.CurrentSessionName(); err == nil {
 			_ = tmux.ApplyTheme(sess, cfg.Theme)
 		}
-		if err := tmux.AddSidebarToCurrent(repoRoot, 28); err != nil {
+		if err := tmux.AddSidebarToCurrent(repoRoot, sidebarWidth); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}

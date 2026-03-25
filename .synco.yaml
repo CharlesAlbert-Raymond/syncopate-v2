@@ -2,6 +2,7 @@
 # Overrides ~/.config/synco/config.yaml
 
 worktree_dir: ".worktrees"
+sidebar_width: "28"
 on_create: ""
 on_destroy: ""
 auto_delete_branch: true

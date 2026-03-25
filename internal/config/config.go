@@ -29,6 +29,7 @@ type Theme struct {
 // Config holds the merged synco configuration.
 type Config struct {
 	WorktreeDir      string            `yaml:"worktree_dir"`
+	SidebarWidth     string            `yaml:"sidebar_width,omitempty"`
 	OnCreate         string            `yaml:"on_create"`
 	OnDestroy        string            `yaml:"on_destroy"`
 	AutoDeleteBranch *bool             `yaml:"auto_delete_branch,omitempty"`
@@ -111,6 +112,9 @@ func merge(global, local Config) Config {
 
 	if local.WorktreeDir != "" {
 		out.WorktreeDir = local.WorktreeDir
+	}
+	if local.SidebarWidth != "" {
+		out.SidebarWidth = local.SidebarWidth
 	}
 	if local.OnCreate != "" {
 		out.OnCreate = local.OnCreate

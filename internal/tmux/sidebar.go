@@ -9,7 +9,7 @@ import (
 	"github.com/charles-albert-raymond/synco/internal/config"
 )
 
-const defaultSidebarWidth = 28
+const defaultSidebarWidth = "28"
 
 // LaunchState describes the current tmux environment when synco is invoked.
 type LaunchState int
@@ -42,7 +42,7 @@ func DetectState() LaunchState {
 }
 
 // CreateSessionAndAttach creates a new tmux session at repoRoot with sidebar, then attaches.
-func CreateSessionAndAttach(repoRoot string, sidebarWidth int, cfg config.Config) error {
+func CreateSessionAndAttach(repoRoot string, sidebarWidth string, cfg config.Config) error {
 	// Use the repo directory name as the session base name
 	sessName := SessionNameFor("main")
 
@@ -89,14 +89,14 @@ func AttachFirstSession() error {
 }
 
 // AddSidebarToCurrent splits the current tmux session and adds a sidebar pane.
-func AddSidebarToCurrent(repoRoot string, sidebarWidth int) error {
+func AddSidebarToCurrent(repoRoot string, sidebarWidth string) error {
 	binary, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("cannot find own binary: %w", err)
 	}
 
 	cmd := exec.Command("tmux", "split-window", "-hb",
-		"-l", fmt.Sprintf("%d", sidebarWidth),
+		"-l", sidebarWidth,
 		binary, "--sidebar", "--root", repoRoot,
 	)
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -115,14 +115,14 @@ func EnsureSidebar(session, repoRoot string) error {
 }
 
 // addSidebar splits a sidebar into the left side of the given session.
-func addSidebar(session, repoRoot string, width int) error {
+func addSidebar(session, repoRoot string, width string) error {
 	binary, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("cannot find own binary: %w", err)
 	}
 
 	cmd := exec.Command("tmux", "split-window", "-hb",
-		"-l", fmt.Sprintf("%d", width),
+		"-l", width,
 		"-t", session,
 		binary, "--sidebar", "--root", repoRoot,
 	)
