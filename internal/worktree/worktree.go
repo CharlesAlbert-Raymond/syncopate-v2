@@ -123,6 +123,36 @@ func BranchList(repoRoot string) ([]string, error) {
 	return branches, nil
 }
 
+// RemoteBranchList returns remote branch names (e.g. "origin/feature-x") for the repo.
+func RemoteBranchList(repoRoot string) ([]string, error) {
+	cmd := exec.Command("git", "branch", "-r", "--format=%(refname:short)")
+	cmd.Dir = repoRoot
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git branch -r: %w", err)
+	}
+	var branches []string
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	for scanner.Scan() {
+		b := strings.TrimSpace(scanner.Text())
+		if b == "" || strings.Contains(b, "HEAD") {
+			continue
+		}
+		branches = append(branches, b)
+	}
+	return branches, nil
+}
+
+// Fetch runs git fetch --prune to update remote refs.
+func Fetch(repoRoot string) error {
+	cmd := exec.Command("git", "fetch", "--prune")
+	cmd.Dir = repoRoot
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git fetch: %s: %w", string(out), err)
+	}
+	return nil
+}
+
 func parsePorcelain(data []byte, repoRoot string) []Worktree {
 	var worktrees []Worktree
 	var current Worktree

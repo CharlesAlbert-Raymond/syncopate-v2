@@ -26,13 +26,33 @@ var unsafeChars = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 const RootSessionKey = "root"
 
 // ProjectName derives a sanitized project identifier from a repo root path.
+// It resolves to the main working tree so that worktrees share the same
+// project name as the root repo.
 func ProjectName(repoRoot string) string {
-	name := filepath.Base(repoRoot)
+	name := filepath.Base(mainWorktreeRoot(repoRoot))
 	safe := unsafeChars.ReplaceAllString(name, "-")
 	for strings.Contains(safe, "--") {
 		safe = strings.ReplaceAll(safe, "--", "-")
 	}
 	return strings.Trim(safe, "-")
+}
+
+// mainWorktreeRoot returns the path of the main working tree for a repo.
+// If repoRoot is already the main worktree (or detection fails), it returns repoRoot unchanged.
+func mainWorktreeRoot(repoRoot string) string {
+	cmd := exec.Command("git", "-C", repoRoot, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	out, err := cmd.Output()
+	if err != nil {
+		return repoRoot
+	}
+	gitCommonDir := strings.TrimSpace(string(out))
+	// git-common-dir points to the .git directory of the main worktree.
+	// The main worktree root is its parent.
+	root := filepath.Dir(gitCommonDir)
+	if root == "" || root == "." {
+		return repoRoot
+	}
+	return root
 }
 
 // sanitize cleans a string for use in tmux session names.

@@ -2,6 +2,7 @@ package orchestrate
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charles-albert-raymond/synco/internal/config"
 	"github.com/charles-albert-raymond/synco/internal/state"
@@ -24,6 +25,34 @@ func CreateWorktree(repoRoot string, cfg config.Config, branch, base string) (wt
 	}
 
 	if err := config.RunHookInTmux(sessName, cfg.OnCreate, branch, wtPath); err != nil {
+		return wtPath, sessName, fmt.Errorf("worktree and session created but on_create hook failed: %w", err)
+	}
+
+	return wtPath, sessName, nil
+}
+
+// CreateWorktreeFromExisting creates a worktree from an existing branch (local or remote).
+// For remote branches like "origin/feature-x", it creates a local tracking branch "feature-x".
+func CreateWorktreeFromExisting(repoRoot string, cfg config.Config, branch string) (wtPath, sessName string, err error) {
+	// Strip remote prefix for the local branch name and worktree path
+	localBranch := branch
+	if idx := strings.Index(branch, "/"); idx != -1 && !strings.HasPrefix(branch, "refs/") {
+		localBranch = branch[idx+1:]
+	}
+
+	wtPath = cfg.WorktreePath(repoRoot, localBranch)
+
+	if err := worktree.Add(repoRoot, wtPath, branch, false, ""); err != nil {
+		return "", "", fmt.Errorf("failed to create worktree: %w", err)
+	}
+
+	project := tmux.ProjectName(repoRoot)
+	sessName = tmux.SessionNameFor(project, localBranch)
+	if err := tmux.NewSession(sessName, wtPath); err != nil {
+		return wtPath, "", fmt.Errorf("worktree created at %s but tmux session failed: %w", wtPath, err)
+	}
+
+	if err := config.RunHookInTmux(sessName, cfg.OnCreate, localBranch, wtPath); err != nil {
 		return wtPath, sessName, fmt.Errorf("worktree and session created but on_create hook failed: %w", err)
 	}
 
