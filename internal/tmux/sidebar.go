@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 
 	"github.com/charles-albert-raymond/synco/internal/config"
 )
@@ -67,11 +68,14 @@ func CreateSessionAndAttach(repoRoot string, sidebarWidth string, cfg config.Con
 		return err
 	}
 
-	cmd = exec.Command("tmux", "attach-session", "-t", sessName)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	// Replace the current process with tmux attach for clean terminal handoff.
+	// Using syscall.Exec (instead of cmd.Run) ensures proper terminal sizing
+	// so the layout created in the detached session resizes correctly on attach.
+	tmuxPath, err := exec.LookPath("tmux")
+	if err != nil {
+		return fmt.Errorf("tmux not found: %w", err)
+	}
+	return syscall.Exec(tmuxPath, []string{"tmux", "attach-session", "-t", sessName}, os.Environ())
 }
 
 // AttachFirstSession attaches to the first available synco session for the given project.
@@ -81,11 +85,11 @@ func AttachFirstSession(project string) error {
 		return fmt.Errorf("no synco sessions found")
 	}
 
-	cmd := exec.Command("tmux", "attach-session", "-t", sessions[0].Name)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	tmuxPath, err := exec.LookPath("tmux")
+	if err != nil {
+		return fmt.Errorf("tmux not found: %w", err)
+	}
+	return syscall.Exec(tmuxPath, []string{"tmux", "attach-session", "-t", sessions[0].Name}, os.Environ())
 }
 
 // AddSidebarToCurrent splits the current tmux session and adds a sidebar pane.
@@ -95,6 +99,13 @@ func AddSidebarToCurrent(repoRoot string, sidebarWidth string) error {
 		return fmt.Errorf("cannot find own binary: %w", err)
 	}
 
+	// Remember the active pane so we can restore focus after the split.
+	session, _ := CurrentSessionName()
+	activePaneBefore := ""
+	if session != "" {
+		activePaneBefore = activePane(session)
+	}
+
 	cmd := exec.Command("tmux", "split-window", "-fhb",
 		"-l", sidebarWidth,
 		binary, "--sidebar", "--root", repoRoot,
@@ -102,6 +113,12 @@ func AddSidebarToCurrent(repoRoot string, sidebarWidth string) error {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("tmux split-window: %s: %w", string(out), err)
 	}
+
+	// Restore focus to the work pane.
+	if activePaneBefore != "" {
+		_ = exec.Command("tmux", "select-pane", "-t", activePaneBefore).Run()
+	}
+
 	return nil
 }
 
@@ -121,6 +138,9 @@ func addSidebar(session, repoRoot string, width string) error {
 		return fmt.Errorf("cannot find own binary: %w", err)
 	}
 
+	// Remember the active work pane before splitting so we can restore focus.
+	activePaneBefore := activePane(session)
+
 	cmd := exec.Command("tmux", "split-window", "-fhb",
 		"-l", width,
 		"-t", session,
@@ -130,10 +150,9 @@ func addSidebar(session, repoRoot string, width string) error {
 		return fmt.Errorf("tmux split-window: %s: %w", string(out), err)
 	}
 
-	// Focus the right pane (the work area, not the sidebar)
-	panes, err := listPanes(session)
-	if err == nil && len(panes) >= 2 {
-		_ = exec.Command("tmux", "select-pane", "-t", panes[1]).Run()
+	// Restore focus to the work pane that was active before the sidebar split.
+	if activePaneBefore != "" {
+		_ = exec.Command("tmux", "select-pane", "-t", activePaneBefore).Run()
 	}
 
 	return nil
@@ -170,13 +189,41 @@ func hasSidebarPaneInSession(session string) bool {
 }
 
 // FocusMainPane selects the main (non-sidebar) pane in the given session.
-// The sidebar is always pane 0 (left), so the main pane is the last one.
 func FocusMainPane(session string) {
-	panes, err := listPanes(session)
-	if err != nil || len(panes) < 2 {
+	mainPane := findMainPane(session)
+	if mainPane == "" {
 		return
 	}
-	_ = exec.Command("tmux", "select-pane", "-t", panes[len(panes)-1]).Run()
+	_ = exec.Command("tmux", "select-pane", "-t", mainPane).Run()
+}
+
+// activePane returns the pane_id of the currently active pane in a session.
+func activePane(session string) string {
+	cmd := exec.Command("tmux", "display-message", "-t", session, "-p", "#{pane_id}")
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// findMainPane returns the pane_id of the first non-sidebar pane in a session.
+func findMainPane(session string) string {
+	cmd := exec.Command("tmux", "list-panes", "-t", session, "-F", "#{pane_id}\t#{pane_start_command}")
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		if !strings.Contains(parts[1], "--sidebar") {
+			return parts[0]
+		}
+	}
+	return ""
 }
 
 func listPanes(session string) ([]string, error) {
