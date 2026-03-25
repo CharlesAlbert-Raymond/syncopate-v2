@@ -272,7 +272,7 @@ func launchCreatePopup(repoRoot string) tea.Cmd {
 	return func() tea.Msg {
 		_ = tmux.LaunchPopup(
 			[]string{"--popup-create", "--root", repoRoot},
-			60, 20, "Create Worktree",
+			70, 28, "Create Worktree",
 		)
 		return popupDoneMsg{}
 	}

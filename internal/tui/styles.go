@@ -100,6 +100,17 @@ var (
 			Foreground(colorMuted).
 			Padding(0, 1)
 
+	tabActiveStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorText).
+			Background(colorPrimary).
+			Padding(0, 1)
+
+	tabInactiveStyle = lipgloss.NewStyle().
+				Foreground(colorMuted).
+				Background(colorBgAlt).
+				Padding(0, 1)
+
 	// ASCII art logos
 	logoClassic = "" +
 		" ___ _   _ _ __   ___ ___\n" +
