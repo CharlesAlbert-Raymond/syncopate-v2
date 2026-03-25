@@ -1,8 +1,8 @@
 package state
 
 import (
-	"github.com/charles-albert-raymond/syncopate/internal/tmux"
-	"github.com/charles-albert-raymond/syncopate/internal/worktree"
+	"github.com/charles-albert-raymond/synco/internal/tmux"
+	"github.com/charles-albert-raymond/synco/internal/worktree"
 )
 
 // Entry is the reconciled view of a worktree and its optional tmux session.
@@ -16,7 +16,7 @@ type Entry struct {
 	IsCurrent   bool  // true if this is the worktree whose tmux session we're in
 }
 
-// SessionPorts holds port info for a non-syncopate tmux session.
+// SessionPorts holds port info for a non-synco tmux session.
 type SessionPorts struct {
 	Name  string
 	Ports []int
@@ -25,7 +25,7 @@ type SessionPorts struct {
 // GatherResult contains entries and port info for other tmux sessions.
 type GatherResult struct {
 	Entries       []Entry
-	OtherPorts    []SessionPorts // non-syncopate sessions with listening ports
+	OtherPorts    []SessionPorts // non-synco sessions with listening ports
 }
 
 // Gather produces the full list of entries by joining worktrees with tmux sessions,
@@ -36,7 +36,7 @@ func Gather(repoRoot string) (*GatherResult, error) {
 		return nil, err
 	}
 
-	sessions, err := tmux.ListSyncopateSessions()
+	sessions, err := tmux.ListSessions()
 	if err != nil {
 		return nil, err
 	}
@@ -49,8 +49,8 @@ func Gather(repoRoot string) (*GatherResult, error) {
 	// Batch-fetch listening ports for all tmux sessions at once
 	portsBySession := tmux.PortsBySession()
 
-	// Track which sessions are syncopate-managed
-	syncopateSessions := make(map[string]bool)
+	// Track which sessions are synco-managed
+	syncoSessions := make(map[string]bool)
 
 	// Detect which tmux session we're currently in
 	currentSession, _ := tmux.CurrentSessionName()
@@ -64,7 +64,7 @@ func Gather(repoRoot string) (*GatherResult, error) {
 
 		sessName := tmux.SessionNameFor(branch)
 		sess := sessionMap[sessName]
-		syncopateSessions[sessName] = true
+		syncoSessions[sessName] = true
 
 		entries = append(entries, Entry{
 			Worktree:    wt,
@@ -77,10 +77,10 @@ func Gather(repoRoot string) (*GatherResult, error) {
 		})
 	}
 
-	// Collect ports from non-syncopate sessions
+	// Collect ports from non-synco sessions
 	var otherPorts []SessionPorts
 	for sess, ports := range portsBySession {
-		if !syncopateSessions[sess] && len(ports) > 0 {
+		if !syncoSessions[sess] && len(ports) > 0 {
 			otherPorts = append(otherPorts, SessionPorts{Name: sess, Ports: ports})
 		}
 	}

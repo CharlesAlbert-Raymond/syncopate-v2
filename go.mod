@@ -1,4 +1,4 @@
-module github.com/charles-albert-raymond/syncopate
+module github.com/charles-albert-raymond/synco
 
 go 1.24.2
 

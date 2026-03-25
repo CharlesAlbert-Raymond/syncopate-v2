@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and run syncopate in preview mode (no tmux side effects).
+# Build and run synco in preview mode (no tmux side effects).
 # Shows the UI standalone so you can see the layout without creating
 # or switching tmux sessions.
 #
@@ -10,7 +10,7 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 REPO_ROOT="$(cd "$PROJECT_DIR" && git rev-parse --show-toplevel)"
-BINARY="/tmp/syncopate-try-$$"
+BINARY="/tmp/synco-try-$$"
 
 cleanup() { rm -f "$BINARY"; }
 trap cleanup EXIT

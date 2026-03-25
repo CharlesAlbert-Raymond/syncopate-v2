@@ -11,9 +11,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/charles-albert-raymond/syncopate/internal/config"
-	"github.com/charles-albert-raymond/syncopate/internal/state"
-	"github.com/charles-albert-raymond/syncopate/internal/tmux"
+	"github.com/charles-albert-raymond/synco/internal/config"
+	"github.com/charles-albert-raymond/synco/internal/state"
+	"github.com/charles-albert-raymond/synco/internal/tmux"
 )
 
 // tmuxExecCmd wraps exec.Cmd to implement tea.ExecCommand.
@@ -28,7 +28,7 @@ func (t *tmuxExecCmd) SetStderr(w io.Writer) { t.cmd.Stderr = w }
 
 type listModel struct {
 	entries       []state.Entry
-	otherPorts    []state.SessionPorts // non-syncopate sessions with ports
+	otherPorts    []state.SessionPorts // non-synco sessions with ports
 	cursor             int
 	resetCursorOnNext  bool // reset cursor to current worktree on next entriesMsg
 	width              int

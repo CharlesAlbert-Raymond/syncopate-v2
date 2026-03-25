@@ -3,10 +3,10 @@ package orchestrate
 import (
 	"fmt"
 
-	"github.com/charles-albert-raymond/syncopate/internal/config"
-	"github.com/charles-albert-raymond/syncopate/internal/state"
-	"github.com/charles-albert-raymond/syncopate/internal/tmux"
-	"github.com/charles-albert-raymond/syncopate/internal/worktree"
+	"github.com/charles-albert-raymond/synco/internal/config"
+	"github.com/charles-albert-raymond/synco/internal/state"
+	"github.com/charles-albert-raymond/synco/internal/tmux"
+	"github.com/charles-albert-raymond/synco/internal/worktree"
 )
 
 // CreateWorktree creates a git worktree, a tmux session, and runs the on_create hook.

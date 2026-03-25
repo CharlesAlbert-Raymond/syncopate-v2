@@ -3,8 +3,8 @@ package tui
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/charles-albert-raymond/syncopate/internal/config"
-	"github.com/charles-albert-raymond/syncopate/internal/state"
+	"github.com/charles-albert-raymond/synco/internal/config"
+	"github.com/charles-albert-raymond/synco/internal/state"
 )
 
 // PopupCreateModel wraps createModel for standalone popup usage.

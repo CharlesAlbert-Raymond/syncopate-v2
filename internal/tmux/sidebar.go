@@ -6,18 +6,18 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/charles-albert-raymond/syncopate/internal/config"
+	"github.com/charles-albert-raymond/synco/internal/config"
 )
 
 const defaultSidebarWidth = 28
 
-// LaunchState describes the current tmux environment when syncopate is invoked.
+// LaunchState describes the current tmux environment when synco is invoked.
 type LaunchState int
 
 const (
-	// OutsideNoSession — not in tmux, no syncopate sessions exist.
+	// OutsideNoSession — not in tmux, no synco sessions exist.
 	OutsideNoSession LaunchState = iota
-	// OutsideHasSession — not in tmux, but syncopate sessions exist.
+	// OutsideHasSession — not in tmux, but synco sessions exist.
 	OutsideHasSession
 	// InsideNoSidebar — inside a tmux session, but no sidebar pane.
 	InsideNoSidebar
@@ -28,7 +28,7 @@ const (
 // DetectState figures out which of the 4 launch states we're in.
 func DetectState() LaunchState {
 	if !IsInsideTmux() {
-		sessions, _ := ListSyncopateSessions()
+		sessions, _ := ListSessions()
 		if len(sessions) > 0 {
 			return OutsideHasSession
 		}
@@ -74,11 +74,11 @@ func CreateSessionAndAttach(repoRoot string, sidebarWidth int, cfg config.Config
 	return cmd.Run()
 }
 
-// AttachFirstSession attaches to the first available syncopate session.
+// AttachFirstSession attaches to the first available synco session.
 func AttachFirstSession() error {
-	sessions, err := ListSyncopateSessions()
+	sessions, err := ListSessions()
 	if err != nil || len(sessions) == 0 {
-		return fmt.Errorf("no syncopate sessions found")
+		return fmt.Errorf("no synco sessions found")
 	}
 
 	cmd := exec.Command("tmux", "attach-session", "-t", sessions[0].Name)
@@ -105,7 +105,7 @@ func AddSidebarToCurrent(repoRoot string, sidebarWidth int) error {
 	return nil
 }
 
-// EnsureSidebar makes sure the given session has a syncopate sidebar pane.
+// EnsureSidebar makes sure the given session has a synco sidebar pane.
 // If it already has one, this is a no-op.
 func EnsureSidebar(session, repoRoot string) error {
 	if hasSidebarPaneInSession(session) {
@@ -139,7 +139,7 @@ func addSidebar(session, repoRoot string, width int) error {
 	return nil
 }
 
-// hasSidebarPane checks if the current session has a pane running syncopate --sidebar.
+// hasSidebarPane checks if the current session has a pane running synco --sidebar.
 func hasSidebarPane() bool {
 	cmd := exec.Command("tmux", "list-panes", "-F", "#{pane_current_command} #{pane_start_command}")
 	out, err := cmd.Output()
@@ -154,7 +154,7 @@ func hasSidebarPane() bool {
 	return false
 }
 
-// hasSidebarPaneInSession checks if a specific session has a syncopate sidebar.
+// hasSidebarPaneInSession checks if a specific session has a synco sidebar.
 func hasSidebarPaneInSession(session string) bool {
 	cmd := exec.Command("tmux", "list-panes", "-t", session, "-F", "#{pane_start_command}")
 	out, err := cmd.Output()

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Build and install synco to GOPATH/bin.
+#
+# Usage:
+#   bin/install
+set -euo pipefail
+
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+DEST="$(go env GOPATH)/bin"
+
+echo "Installing synco → ${DEST}/synco"
+(cd "$PROJECT_DIR" && go build -o "${DEST}/synco" .)
+echo "Done."
+
+if ! echo "$PATH" | tr ':' '\n' | grep -qx "$DEST"; then
+    echo ""
+    echo "Note: ${DEST} is not in your PATH. Add it with:"
+    echo "  export PATH=\"${DEST}:\$PATH\""
+fi

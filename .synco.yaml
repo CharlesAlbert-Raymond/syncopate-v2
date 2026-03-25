@@ -1,5 +1,5 @@
-# Syncopate local config for this repo.
-# Overrides ~/.config/syncopate/config.yaml
+# Synco local config for this repo.
+# Overrides ~/.config/synco/config.yaml
 
 worktree_dir: ".worktrees"
 on_create: ""

@@ -3,9 +3,9 @@ package restore
 import (
 	"fmt"
 
-	"github.com/charles-albert-raymond/syncopate/internal/config"
-	"github.com/charles-albert-raymond/syncopate/internal/state"
-	"github.com/charles-albert-raymond/syncopate/internal/tmux"
+	"github.com/charles-albert-raymond/synco/internal/config"
+	"github.com/charles-albert-raymond/synco/internal/state"
+	"github.com/charles-albert-raymond/synco/internal/tmux"
 )
 
 // Result holds what happened during a restore operation.

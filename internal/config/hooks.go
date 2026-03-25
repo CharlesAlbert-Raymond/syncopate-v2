@@ -16,8 +16,8 @@ func RunHook(script, branch, worktreePath string) error {
 	cmd := exec.Command("sh", "-c", script)
 	cmd.Dir = worktreePath
 	cmd.Env = append(os.Environ(),
-		"SYNCOPATE_BRANCH="+branch,
-		"SYNCOPATE_WORKTREE_PATH="+worktreePath,
+		"SYNCO_BRANCH="+branch,
+		"SYNCO_WORKTREE_PATH="+worktreePath,
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -37,7 +37,7 @@ func RunHookInTmux(sessionName, script, branch, worktreePath string) error {
 
 	// Wrap the script with env vars so it has context
 	wrapped := fmt.Sprintf(
-		"SYNCOPATE_BRANCH=%q SYNCOPATE_WORKTREE_PATH=%q %s",
+		"SYNCO_BRANCH=%q SYNCO_WORKTREE_PATH=%q %s",
 		branch, worktreePath, script,
 	)
 

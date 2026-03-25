@@ -5,54 +5,54 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/charles-albert-raymond/syncopate/internal/config"
-	"github.com/charles-albert-raymond/syncopate/internal/orchestrate"
-	"github.com/charles-albert-raymond/syncopate/internal/state"
-	"github.com/charles-albert-raymond/syncopate/internal/tmux"
+	"github.com/charles-albert-raymond/synco/internal/config"
+	"github.com/charles-albert-raymond/synco/internal/orchestrate"
+	"github.com/charles-albert-raymond/synco/internal/state"
+	"github.com/charles-albert-raymond/synco/internal/tmux"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // --- Tool definitions ---
 
-var listWorktreesTool = mcp.NewTool("syncopate_list_worktrees",
+var listWorktreesTool = mcp.NewTool("synco_list_worktrees",
 	mcp.WithDescription("List all git worktrees with their tmux session status, listening ports, and git state."),
 	mcp.WithReadOnlyHintAnnotation(true),
 	mcp.WithDestructiveHintAnnotation(false),
 )
 
-var createWorktreeTool = mcp.NewTool("syncopate_create_worktree",
+var createWorktreeTool = mcp.NewTool("synco_create_worktree",
 	mcp.WithDescription("Create a new git worktree with a tmux session. Optionally runs the on_create hook."),
 	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name to create (e.g. 'feature/auth-refactor').")),
 	mcp.WithString("base", mcp.Description("Base branch or commit to branch from. Defaults to HEAD.")),
 )
 
-var deleteWorktreeTool = mcp.NewTool("syncopate_delete_worktree",
+var deleteWorktreeTool = mcp.NewTool("synco_delete_worktree",
 	mcp.WithDescription("Delete a git worktree and its tmux session. Cannot delete the main worktree."),
 	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree to delete.")),
 	mcp.WithBoolean("delete_branch", mcp.Description("Also delete the git branch. Defaults to the auto_delete_branch config value.")),
 	mcp.WithDestructiveHintAnnotation(true),
 )
 
-var switchSessionTool = mcp.NewTool("syncopate_switch_session",
+var switchSessionTool = mcp.NewTool("synco_switch_session",
 	mcp.WithDescription("Switch the tmux client to a worktree's session. Only works when invoked from inside tmux."),
 	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree to switch to.")),
 	mcp.WithDestructiveHintAnnotation(false),
 )
 
-var sendKeysTool = mcp.NewTool("syncopate_send_keys",
+var sendKeysTool = mcp.NewTool("synco_send_keys",
 	mcp.WithDescription("Send a command to a worktree's tmux session (like typing it in the terminal and pressing Enter)."),
 	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree whose session to send keys to.")),
 	mcp.WithString("keys", mcp.Required(), mcp.Description("The command or keystrokes to send.")),
 )
 
-var getConfigTool = mcp.NewTool("syncopate_get_config",
-	mcp.WithDescription("Read the current syncopate configuration (merged global + local)."),
+var getConfigTool = mcp.NewTool("synco_get_config",
+	mcp.WithDescription("Read the current synco configuration (merged global + local)."),
 	mcp.WithReadOnlyHintAnnotation(true),
 	mcp.WithDestructiveHintAnnotation(false),
 )
 
-var sessionOutputTool = mcp.NewTool("syncopate_session_output",
+var sessionOutputTool = mcp.NewTool("synco_session_output",
 	mcp.WithDescription("Capture recent terminal output from a worktree's tmux session pane."),
 	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree whose session output to capture.")),
 	mcp.WithNumber("lines", mcp.Description("Number of lines to capture. Defaults to 50.")),
@@ -279,7 +279,7 @@ func (tc *toolContext) handleGetConfig(_ context.Context, req mcp.CallToolReques
 		"auto_delete_branch": cfg.ShouldDeleteBranch(),
 		"aliases":            cfg.Aliases,
 		"global_config_path": config.GlobalConfigPath(),
-		"local_config_path":  tc.repoRoot + "/.syncopate.yaml",
+		"local_config_path":  tc.repoRoot + "/.synco.yaml",
 	})
 }
 

@@ -11,9 +11,9 @@ import (
 	"syscall"
 )
 
-const SessionPrefix = "syncopate-"
+const SessionPrefix = "synco-"
 
-// Session represents a tmux session managed by syncopate.
+// Session represents a tmux session managed by synco.
 type Session struct {
 	Name     string
 	Attached bool
@@ -32,8 +32,8 @@ func SessionNameFor(branch string) string {
 	return SessionPrefix + safe
 }
 
-// ListSyncopateSessions returns tmux sessions prefixed with "syncopate-".
-func ListSyncopateSessions() ([]Session, error) {
+// ListSessions returns tmux sessions prefixed with "synco-".
+func ListSessions() ([]Session, error) {
 	cmd := exec.Command("tmux", "list-sessions", "-F", "#{session_name}\t#{session_attached}")
 	out, err := cmd.Output()
 	if err != nil {

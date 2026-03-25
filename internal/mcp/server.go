@@ -14,7 +14,7 @@ type toolContext struct {
 
 // Serve starts the MCP server over stdio, blocking until the connection closes.
 func Serve(repoRoot string) error {
-	s := server.NewMCPServer("syncopate", "1.0.0",
+	s := server.NewMCPServer("synco", "1.0.0",
 		server.WithToolCapabilities(true),
 	)
 

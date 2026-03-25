@@ -1,7 +1,7 @@
 {
   "mcpServers": {
-    "syncopate": {
-      "command": "${HOME}/go/bin/syncopate",
+    "synco": {
+      "command": "${HOME}/go/bin/synco",
       "args": ["mcp"]
     }
   }

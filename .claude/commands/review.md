@@ -1,4 +1,4 @@
-You are reviewing the syncopate codebase. Perform a thorough audit of **all changed files** compared to the main branch. Run all checks in parallel where possible.
+You are reviewing the synco codebase. Perform a thorough audit of **all changed files** compared to the main branch. Run all checks in parallel where possible.
 
 ## Steps
 

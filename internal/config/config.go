@@ -26,7 +26,7 @@ type Theme struct {
 	PaneBorderLabels bool   `yaml:"pane_border_labels,omitempty"`
 }
 
-// Config holds the merged syncopate configuration.
+// Config holds the merged synco configuration.
 type Config struct {
 	WorktreeDir      string            `yaml:"worktree_dir"`
 	OnCreate         string            `yaml:"on_create"`
@@ -69,7 +69,7 @@ func (c Config) ShouldDeleteBranch() bool {
 // Local fields override global when set.
 func Load(repoRoot string) (Config, error) {
 	global, _ := loadFile(globalConfigPath())
-	local, _ := loadFile(filepath.Join(repoRoot, ".syncopate.yaml"))
+	local, _ := loadFile(filepath.Join(repoRoot, ".synco.yaml"))
 
 	merged := merge(global, local)
 
@@ -87,10 +87,10 @@ func GlobalConfigPath() string {
 
 func globalConfigPath() string {
 	if dir, err := os.UserConfigDir(); err == nil {
-		return filepath.Join(dir, "syncopate", "config.yaml")
+		return filepath.Join(dir, "synco", "config.yaml")
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "syncopate", "config.yaml")
+	return filepath.Join(home, ".config", "synco", "config.yaml")
 }
 
 func loadFile(path string) (Config, error) {

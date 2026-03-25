@@ -1,16 +1,16 @@
-# Syncopate local config (per-repo)
-# Place as .syncopate.yaml in your repo root.
-# Local values override the global config (~/.config/syncopate/config.yaml).
+# Synco local config (per-repo)
+# Place as .synco.yaml in your repo root.
+# Local values override the global config (~/.config/synco/config.yaml).
 
 # Directory for worktrees, relative to repo root (default: ".worktrees")
 worktree_dir: ".worktrees"
 
 # Script to run inside the tmux session after worktree creation.
-# Receives SYNCOPATE_BRANCH and SYNCOPATE_WORKTREE_PATH as env vars.
+# Receives SYNCO_BRANCH and SYNCO_WORKTREE_PATH as env vars.
 on_create: "./scripts/setup-worktree.sh"
 
 # Script to run before worktree removal.
-# Receives SYNCOPATE_BRANCH and SYNCOPATE_WORKTREE_PATH as env vars.
+# Receives SYNCO_BRANCH and SYNCO_WORKTREE_PATH as env vars.
 on_destroy: "./scripts/cleanup-worktree.sh"
 
 # Automatically delete the git branch when removing a worktree (default: false).

@@ -7,16 +7,16 @@ func TestSessionNameFor(t *testing.T) {
 		branch string
 		want   string
 	}{
-		{"main", "syncopate-main"},
-		{"feature-x", "syncopate-feature-x"},
-		{"feature/auth-refactor", "syncopate-feature-auth-refactor"},
-		{"feat/add-mcp-for-syncopate", "syncopate-feat-add-mcp-for-syncopate"},
-		{"my.branch.name", "syncopate-my-branch-name"},
-		{"a//b", "syncopate-a-b"},
-		{"---dashes---", "syncopate-dashes"},
-		{"", "syncopate-"},
-		{"simple", "syncopate-simple"},
-		{"UPPER_case", "syncopate-UPPER_case"},
+		{"main", "synco-main"},
+		{"feature-x", "synco-feature-x"},
+		{"feature/auth-refactor", "synco-feature-auth-refactor"},
+		{"feat/add-mcp-for-syncopate", "synco-feat-add-mcp-for-syncopate"},
+		{"my.branch.name", "synco-my-branch-name"},
+		{"a//b", "synco-a-b"},
+		{"---dashes---", "synco-dashes"},
+		{"", "synco-"},
+		{"simple", "synco-simple"},
+		{"UPPER_case", "synco-UPPER_case"},
 	}
 
 	for _, tt := range tests {

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charles-albert-raymond/syncopate/internal/config"
-	"github.com/charles-albert-raymond/syncopate/internal/state"
-	"github.com/charles-albert-raymond/syncopate/internal/tmux"
-	wt "github.com/charles-albert-raymond/syncopate/internal/worktree"
+	"github.com/charles-albert-raymond/synco/internal/config"
+	"github.com/charles-albert-raymond/synco/internal/state"
+	"github.com/charles-albert-raymond/synco/internal/tmux"
+	wt "github.com/charles-albert-raymond/synco/internal/worktree"
 )
 
 // ============================================================
@@ -20,10 +20,10 @@ import (
 
 func TestOrphanedWorktrees_FiltersCorrectly(t *testing.T) {
 	entries := []state.Entry{
-		{BranchShort: "main", SessionName: "syncopate-main", HasSession: true},
-		{BranchShort: "feat-a", SessionName: "syncopate-feat-a", HasSession: false},
-		{BranchShort: "feat-b", SessionName: "syncopate-feat-b", HasSession: true},
-		{BranchShort: "feat-c", SessionName: "syncopate-feat-c", HasSession: false},
+		{BranchShort: "main", SessionName: "synco-main", HasSession: true},
+		{BranchShort: "feat-a", SessionName: "synco-feat-a", HasSession: false},
+		{BranchShort: "feat-b", SessionName: "synco-feat-b", HasSession: true},
+		{BranchShort: "feat-c", SessionName: "synco-feat-c", HasSession: false},
 	}
 
 	orphans := OrphanedWorktrees(entries)
@@ -73,8 +73,8 @@ func TestRestoreEntries_SkipsExistingSessions(t *testing.T) {
 	// This test does NOT create real tmux sessions — it just passes entries
 	// marked as HasSession:true and verifies they end up in Skipped.
 	entries := []state.Entry{
-		{BranchShort: "main", SessionName: "syncopate-main", HasSession: true},
-		{BranchShort: "feat-a", SessionName: "syncopate-feat-a", HasSession: true},
+		{BranchShort: "main", SessionName: "synco-main", HasSession: true},
+		{BranchShort: "feat-a", SessionName: "synco-feat-a", HasSession: true},
 	}
 
 	res, err := RestoreEntries(entries, config.Config{}, false)
@@ -100,7 +100,7 @@ func TestRestoreEntries_SkipsExistingSessions(t *testing.T) {
 // sessions or worktrees.
 // ============================================================
 
-const testBranchPrefix = "syncopate-test-restore-"
+const testBranchPrefix = "synco-test-restore-"
 
 func skipIfNoTmux(t *testing.T) {
 	t.Helper()
@@ -149,7 +149,7 @@ func cleanupTestSession(t *testing.T, sessionName string) {
 }
 
 func sessionExists(sessionName string) bool {
-	sessions, err := tmux.ListSyncopateSessions()
+	sessions, err := tmux.ListSessions()
 	if err != nil {
 		return false
 	}
@@ -251,7 +251,7 @@ func TestIntegration_RestoreRunsOnCreateHook(t *testing.T) {
 	defer cleanupTestSession(t, sessName)
 
 	// Create a marker file path the hook will write to
-	markerFile := filepath.Join(os.TempDir(), "syncopate-test-hook-"+branch)
+	markerFile := filepath.Join(os.TempDir(), "synco-test-hook-"+branch)
 	defer os.Remove(markerFile)
 
 	cfg := config.Config{
@@ -297,7 +297,7 @@ func TestIntegration_RestoreNoHooksWhenDisabled(t *testing.T) {
 	defer cleanupTestWorktree(t, repoRoot, branch, wtPath)
 	defer cleanupTestSession(t, sessName)
 
-	markerFile := filepath.Join(os.TempDir(), "syncopate-test-nohook-"+branch)
+	markerFile := filepath.Join(os.TempDir(), "synco-test-nohook-"+branch)
 	defer os.Remove(markerFile)
 
 	cfg := config.Config{

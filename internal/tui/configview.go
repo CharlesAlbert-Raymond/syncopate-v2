@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/charles-albert-raymond/syncopate/internal/config"
+	"github.com/charles-albert-raymond/synco/internal/config"
 )
 
 type configViewModel struct {
@@ -37,7 +37,7 @@ func (m configViewModel) View() string {
 	b.WriteString(valueStyle.Render(config.GlobalConfigPath()))
 	b.WriteString("\n")
 	b.WriteString(labelStyle.Render("  Local:"))
-	b.WriteString(valueStyle.Render(filepath.Join(m.repoRoot, ".syncopate.yaml")))
+	b.WriteString(valueStyle.Render(filepath.Join(m.repoRoot, ".synco.yaml")))
 	b.WriteString("\n\n")
 
 	// Resolved config

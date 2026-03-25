@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Build the syncopate binary.
+# Build the synco binary.
 #
 # Usage:
-#   bin/build            # builds to ./syncopate
+#   bin/build            # builds to ./synco
 #   bin/build -o /path   # builds to custom path
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-OUTPUT="${1:-${PROJECT_DIR}/syncopate}"
+OUTPUT="${1:-${PROJECT_DIR}/synco}"
 
 if [[ "${1:-}" == "-o" ]]; then
     OUTPUT="${2:?usage: bin/build -o <path>}"
     shift 2
 fi
 
-echo "Building syncopate → ${OUTPUT}"
+echo "Building synco → ${OUTPUT}"
 (cd "$PROJECT_DIR" && go build -o "$OUTPUT" .)
 echo "Done."

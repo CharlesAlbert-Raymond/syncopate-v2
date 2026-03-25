@@ -3,8 +3,8 @@ package mcp
 import (
 	"testing"
 
-	"github.com/charles-albert-raymond/syncopate/internal/state"
-	"github.com/charles-albert-raymond/syncopate/internal/worktree"
+	"github.com/charles-albert-raymond/synco/internal/state"
+	"github.com/charles-albert-raymond/synco/internal/worktree"
 )
 
 func TestFindEntry(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/charles-albert-raymond/syncopate/internal/config"
+	"github.com/charles-albert-raymond/synco/internal/config"
 )
 
 // ApplyTheme sets pane border styles on the given tmux session.
@@ -36,12 +36,12 @@ func ApplyTheme(session string, theme *config.Theme) error {
 	return nil
 }
 
-// ApplyThemeToAllSessions applies theme to all existing syncopate sessions.
+// ApplyThemeToAllSessions applies theme to all existing synco sessions.
 func ApplyThemeToAllSessions(theme *config.Theme) {
 	if theme == nil {
 		return
 	}
-	sessions, err := ListSyncopateSessions()
+	sessions, err := ListSessions()
 	if err != nil {
 		return
 	}

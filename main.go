@@ -9,11 +9,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/charles-albert-raymond/syncopate/internal/config"
-	syncmcp "github.com/charles-albert-raymond/syncopate/internal/mcp"
-	"github.com/charles-albert-raymond/syncopate/internal/state"
-	"github.com/charles-albert-raymond/syncopate/internal/tmux"
-	"github.com/charles-albert-raymond/syncopate/internal/tui"
+	"github.com/charles-albert-raymond/synco/internal/config"
+	syncmcp "github.com/charles-albert-raymond/synco/internal/mcp"
+	"github.com/charles-albert-raymond/synco/internal/state"
+	"github.com/charles-albert-raymond/synco/internal/tmux"
+	"github.com/charles-albert-raymond/synco/internal/tui"
 )
 
 func main() {
@@ -110,7 +110,7 @@ func launch(repoRoot string, cfg config.Config) {
 		// Not in tmux, sessions exist — reconnect to the first one
 		// Apply theme to all existing sessions in case config changed
 		tmux.ApplyThemeToAllSessions(cfg.Theme)
-		fmt.Println("Reconnecting to existing syncopate session...")
+		fmt.Println("Reconnecting to existing synco session...")
 		if err := tmux.AttachFirstSession(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -128,10 +128,10 @@ func launch(repoRoot string, cfg config.Config) {
 
 	case tmux.InsideHasSidebar:
 		// Sidebar already running in this session
-		fmt.Println("syncopate is already running in this session.")
+		fmt.Println("synco is already running in this session.")
 		fmt.Println()
 		fmt.Println("  Tip: focus the sidebar pane with Ctrl-b + ←")
-		fmt.Println("  Or run 'syncopate --classic' for full-screen mode.")
+		fmt.Println("  Or run 'synco --classic' for full-screen mode.")
 	}
 }
 
@@ -155,7 +155,7 @@ func resolveRepoRoot(flagValue string) string {
 	root, err := findGitRoot()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		fmt.Fprintf(os.Stderr, "syncopate must be run from within a git repository.\n")
+		fmt.Fprintf(os.Stderr, "synco must be run from within a git repository.\n")
 		os.Exit(1)
 	}
 	return root
@@ -164,7 +164,7 @@ func resolveRepoRoot(flagValue string) string {
 func loadConfig(repoRoot string) config.Config {
 	cfg, err := config.Load(repoRoot)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not load .syncopate.yaml: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Warning: could not load .synco.yaml: %v\n", err)
 		cfg = config.Config{WorktreeDir: ".."}
 	}
 	return cfg
