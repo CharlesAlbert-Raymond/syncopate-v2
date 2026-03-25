@@ -27,6 +27,7 @@ func Serve(repoRoot string) error {
 	s.AddTool(sendKeysTool, ctx.handleSendKeys)
 	s.AddTool(getConfigTool, ctx.handleGetConfig)
 	s.AddTool(sessionOutputTool, ctx.handleSessionOutput)
+	s.AddTool(inspectTaskTool, ctx.handleInspectTask)
 
 	stdio := server.NewStdioServer(s)
 	return stdio.Listen(context.Background(), os.Stdin, os.Stdout)

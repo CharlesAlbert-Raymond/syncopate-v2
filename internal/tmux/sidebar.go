@@ -95,7 +95,7 @@ func AddSidebarToCurrent(repoRoot string, sidebarWidth string) error {
 		return fmt.Errorf("cannot find own binary: %w", err)
 	}
 
-	cmd := exec.Command("tmux", "split-window", "-hb",
+	cmd := exec.Command("tmux", "split-window", "-fhb",
 		"-l", sidebarWidth,
 		binary, "--sidebar", "--root", repoRoot,
 	)
@@ -121,7 +121,7 @@ func addSidebar(session, repoRoot string, width string) error {
 		return fmt.Errorf("cannot find own binary: %w", err)
 	}
 
-	cmd := exec.Command("tmux", "split-window", "-hb",
+	cmd := exec.Command("tmux", "split-window", "-fhb",
 		"-l", width,
 		"-t", session,
 		binary, "--sidebar", "--root", repoRoot,

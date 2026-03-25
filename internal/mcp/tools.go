@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/charles-albert-raymond/synco/internal/config"
 	"github.com/charles-albert-raymond/synco/internal/orchestrate"
@@ -56,6 +58,14 @@ var sessionOutputTool = mcp.NewTool("synco_session_output",
 	mcp.WithDescription("Capture recent terminal output from a worktree's tmux session pane."),
 	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree whose session output to capture.")),
 	mcp.WithNumber("lines", mcp.Description("Number of lines to capture. Defaults to 50.")),
+	mcp.WithReadOnlyHintAnnotation(true),
+	mcp.WithDestructiveHintAnnotation(false),
+)
+
+var inspectTaskTool = mcp.NewTool("synco_inspect_task",
+	mcp.WithDescription("Read the TICKET.md file from a worktree's directory to understand the task or requirements for that worktree."),
+	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree to inspect.")),
+	mcp.WithString("filename", mcp.Description("File to read. Defaults to TICKET.md.")),
 	mcp.WithReadOnlyHintAnnotation(true),
 	mcp.WithDestructiveHintAnnotation(false),
 )
@@ -307,5 +317,43 @@ func (tc *toolContext) handleSessionOutput(_ context.Context, req mcp.CallToolRe
 	return textResult(map[string]string{
 		"session": sessName,
 		"output":  output,
+	})
+}
+
+func (tc *toolContext) handleInspectTask(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	branch := stringArg(req, "branch")
+	if branch == "" {
+		return errResult("branch is required")
+	}
+
+	result, err := state.Gather(tc.repoRoot)
+	if err != nil {
+		return errResult("failed to gather state: %v", err)
+	}
+
+	entry, found := findEntry(result.Entries, branch)
+	if !found {
+		return errResult("no worktree found for branch %q", branch)
+	}
+
+	filename := stringArg(req, "filename")
+	if filename == "" {
+		filename = "TICKET.md"
+	}
+
+	taskPath := filepath.Join(entry.Worktree.Path, filename)
+	data, err := os.ReadFile(taskPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return errResult("no %s found in worktree %q at %s", filename, branch, taskPath)
+		}
+		return errResult("failed to read %s: %v", filename, err)
+	}
+
+	return textResult(map[string]string{
+		"branch":   branch,
+		"path":     taskPath,
+		"filename": filename,
+		"content":  string(data),
 	})
 }
