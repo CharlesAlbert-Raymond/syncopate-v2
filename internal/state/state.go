@@ -14,6 +14,7 @@ type Entry struct {
 	HasSession  bool
 	Ports       []int // TCP ports being listened on in this session
 	IsCurrent   bool  // true if this is the worktree whose tmux session we're in
+	IdleSeconds int   // seconds since last pane output, -1 if no session
 }
 
 // SessionPorts holds port info for a non-synco tmux session.
@@ -48,8 +49,9 @@ func Gather(repoRoot string) (*GatherResult, error) {
 		sessionMap[sessions[i].Name] = &sessions[i]
 	}
 
-	// Batch-fetch listening ports for all tmux sessions at once
+	// Batch-fetch listening ports and activity for all tmux sessions at once
 	portsBySession := tmux.PortsBySession()
+	activityBySession := tmux.ActivityBySession(project)
 
 	// Track which sessions are synco-managed
 	syncoSessions := make(map[string]bool)
@@ -74,6 +76,13 @@ func Gather(repoRoot string) (*GatherResult, error) {
 		sess := sessionMap[sessName]
 		syncoSessions[sessName] = true
 
+		idle := -1
+		if sess != nil {
+			if v, ok := activityBySession[sessName]; ok {
+				idle = v
+			}
+		}
+
 		entries = append(entries, Entry{
 			Worktree:    wt,
 			BranchShort: branch,
@@ -82,6 +91,7 @@ func Gather(repoRoot string) (*GatherResult, error) {
 			HasSession:  sess != nil,
 			Ports:       portsBySession[sessName],
 			IsCurrent:   sessName == currentSession,
+			IdleSeconds: idle,
 		})
 	}
 

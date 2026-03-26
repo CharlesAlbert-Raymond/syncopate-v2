@@ -120,6 +120,19 @@ func (m configViewModel) View() string {
 		}
 	}
 
+	// Notifications
+	if m.config.Notifications != nil {
+		b.WriteString("\n")
+		b.WriteString(headerStyle.Render("Notifications"))
+		b.WriteString("\n")
+		renderField("enabled", fmt.Sprintf("%v", m.config.NotificationsEnabled()))
+		renderField("silence_seconds", fmt.Sprintf("%d", m.config.SilenceThreshold()))
+		renderField("bell", fmt.Sprintf("%v", m.config.BellEnabled()))
+		renderField("system_notif", fmt.Sprintf("%v", m.config.SystemNotificationEnabled()))
+		renderField("sound", m.config.NotificationSound())
+		renderField("on_silence", m.config.Notifications.OnSilence)
+	}
+
 	b.WriteString("\n")
 	b.WriteString(helpStyle.Render(" ? close • esc close"))
 

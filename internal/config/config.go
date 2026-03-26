@@ -26,6 +26,16 @@ type Theme struct {
 	PaneBorderLabels bool   `yaml:"pane_border_labels,omitempty"`
 }
 
+// Notifications holds notification preferences.
+type Notifications struct {
+	Enabled            *bool  `yaml:"enabled,omitempty"`
+	SilenceSeconds     int    `yaml:"silence_seconds,omitempty"`
+	Bell               *bool  `yaml:"bell,omitempty"`
+	SystemNotification *bool  `yaml:"system_notification,omitempty"`
+	Sound              string `yaml:"sound,omitempty"`
+	OnSilence          string `yaml:"on_silence,omitempty"`
+}
+
 // Config holds the merged synco configuration.
 type Config struct {
 	WorktreeDir      string            `yaml:"worktree_dir"`
@@ -36,6 +46,7 @@ type Config struct {
 	Aliases          map[string]string `yaml:"aliases,omitempty"`
 	Theme            *Theme            `yaml:"theme,omitempty"`
 	Layouts          map[string]Layout `yaml:"layouts,omitempty"`
+	Notifications    *Notifications    `yaml:"notifications,omitempty"`
 }
 
 // DefaultLayout returns the "default" layout, or nil if none is configured.
@@ -48,6 +59,49 @@ func (c Config) DefaultLayout() *Layout {
 		return nil
 	}
 	return &l
+}
+
+// NotificationsEnabled returns true when notifications are configured and not explicitly disabled.
+func (c Config) NotificationsEnabled() bool {
+	if c.Notifications == nil {
+		return false
+	}
+	if c.Notifications.Enabled != nil {
+		return *c.Notifications.Enabled
+	}
+	return true // enabled by default when section exists
+}
+
+// SilenceThreshold returns the configured silence seconds, or 10 as default.
+func (c Config) SilenceThreshold() int {
+	if c.Notifications != nil && c.Notifications.SilenceSeconds > 0 {
+		return c.Notifications.SilenceSeconds
+	}
+	return 10
+}
+
+// BellEnabled returns whether the terminal bell should fire on silence.
+func (c Config) BellEnabled() bool {
+	if c.Notifications != nil && c.Notifications.Bell != nil {
+		return *c.Notifications.Bell
+	}
+	return true
+}
+
+// SystemNotificationEnabled returns whether macOS system notifications should fire.
+func (c Config) SystemNotificationEnabled() bool {
+	if c.Notifications != nil && c.Notifications.SystemNotification != nil {
+		return *c.Notifications.SystemNotification
+	}
+	return true
+}
+
+// NotificationSound returns the macOS notification sound name, or "Glass" as default.
+func (c Config) NotificationSound() string {
+	if c.Notifications != nil && c.Notifications.Sound != "" {
+		return c.Notifications.Sound
+	}
+	return "Glass"
 }
 
 // AliasFor returns the alias for a branch, or empty string if none.
@@ -139,6 +193,11 @@ func merge(global, local Config) Config {
 	// Theme: local overrides global entirely if set
 	if local.Theme != nil {
 		out.Theme = local.Theme
+	}
+
+	// Notifications: local overrides global entirely if set
+	if local.Notifications != nil {
+		out.Notifications = local.Notifications
 	}
 
 	// Layouts: local overrides global per-key

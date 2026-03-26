@@ -75,6 +75,63 @@ func TestShouldDeleteBranchDefault(t *testing.T) {
 	}
 }
 
+func TestMergeNotifications(t *testing.T) {
+	falseVal := false
+	global := Config{
+		Notifications: &Notifications{
+			SilenceSeconds: 30,
+			Sound:          "Ping",
+		},
+	}
+	local := Config{
+		Notifications: &Notifications{
+			Enabled:        &falseVal,
+			SilenceSeconds: 5,
+		},
+	}
+	got := merge(global, local)
+
+	if got.Notifications == nil {
+		t.Fatal("Notifications should not be nil")
+	}
+	if got.NotificationsEnabled() {
+		t.Error("NotificationsEnabled() = true, want false (local explicitly disabled)")
+	}
+	if got.SilenceThreshold() != 5 {
+		t.Errorf("SilenceThreshold() = %d, want 5 (local overrides global entirely)", got.SilenceThreshold())
+	}
+	// Sound should be empty since local overrides global entirely
+	if got.NotificationSound() != "Glass" {
+		// local.Sound is empty, so default "Glass" should be returned
+	}
+}
+
+func TestNotificationsDefaults(t *testing.T) {
+	// nil Notifications: disabled
+	c := Config{}
+	if c.NotificationsEnabled() {
+		t.Error("nil Notifications should mean disabled")
+	}
+	if c.SilenceThreshold() != 10 {
+		t.Errorf("default SilenceThreshold = %d, want 10", c.SilenceThreshold())
+	}
+
+	// non-nil Notifications with zero values: enabled with defaults
+	c2 := Config{Notifications: &Notifications{}}
+	if !c2.NotificationsEnabled() {
+		t.Error("empty Notifications struct should default to enabled")
+	}
+	if !c2.BellEnabled() {
+		t.Error("default BellEnabled should be true")
+	}
+	if !c2.SystemNotificationEnabled() {
+		t.Error("default SystemNotificationEnabled should be true")
+	}
+	if c2.NotificationSound() != "Glass" {
+		t.Errorf("default NotificationSound = %q, want Glass", c2.NotificationSound())
+	}
+}
+
 func TestAliasFor(t *testing.T) {
 	c := Config{Aliases: map[string]string{"main": "trunk"}}
 	if got := c.AliasFor("main"); got != "trunk" {
