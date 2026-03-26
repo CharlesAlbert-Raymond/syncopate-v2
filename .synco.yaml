@@ -16,6 +16,3 @@ layouts:
   default:
     panes:
       - command: ""
-      - command: ""
-        split: horizontal
-        size: "30%"

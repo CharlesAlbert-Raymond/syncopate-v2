@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 	"syscall"
+	"unsafe"
 
 	"github.com/charles-albert-raymond/synco/internal/config"
 )
@@ -42,12 +43,36 @@ func DetectState(project string) LaunchState {
 	return InsideNoSidebar
 }
 
+// termSize returns the current terminal dimensions (columns, rows).
+// Falls back to 0, 0 if the terminal size cannot be determined (tmux will use its default).
+func termSize() (cols, rows uint16) {
+	var ws struct {
+		Row, Col, Xpixel, Ypixel uint16
+	}
+	_, _, errno := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		uintptr(os.Stdout.Fd()),
+		uintptr(syscall.TIOCGWINSZ),
+		uintptr(unsafe.Pointer(&ws)),
+	)
+	if errno != 0 {
+		return 0, 0
+	}
+	return ws.Col, ws.Row
+}
+
 // CreateSessionAndAttach creates a new tmux session at repoRoot with sidebar, then attaches.
 func CreateSessionAndAttach(repoRoot string, sidebarWidth string, cfg config.Config) error {
 	project := ProjectName(repoRoot)
 	sessName := SessionNameFor(project, RootSessionKey)
 
-	cmd := exec.Command("tmux", "new-session", "-d", "-s", sessName, "-c", repoRoot)
+	args := []string{"new-session", "-d", "-s", sessName, "-c", repoRoot}
+	// Set the detached session size to match the current terminal so that
+	// layout panes and sidebar are created at the correct dimensions.
+	if cols, rows := termSize(); cols > 0 && rows > 0 {
+		args = append(args, "-x", fmt.Sprintf("%d", cols), "-y", fmt.Sprintf("%d", rows))
+	}
+	cmd := exec.Command("tmux", args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("tmux new-session: %s: %w", string(out), err)
 	}

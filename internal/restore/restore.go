@@ -53,6 +53,12 @@ func RestoreEntries(entries []state.Entry, cfg config.Config, runHooks bool) (*R
 			continue
 		}
 
+		// Apply layout and theme so restored sessions match the root session.
+		if layout := cfg.DefaultLayout(); layout != nil {
+			_ = tmux.ApplyLayout(entry.SessionName, layout)
+		}
+		_ = tmux.ApplyTheme(entry.SessionName, cfg.Theme)
+
 		if runHooks && cfg.OnCreate != "" {
 			if err := config.RunHookInTmux(entry.SessionName, cfg.OnCreate, entry.BranchShort, entry.Worktree.Path); err != nil {
 				res.Errors = append(res.Errors, fmt.Errorf("hook for %s: %w", entry.SessionName, err))

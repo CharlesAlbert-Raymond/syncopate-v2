@@ -252,6 +252,11 @@ func (tc *toolContext) handleSwitchSession(_ context.Context, req mcp.CallToolRe
 		if err := tmux.NewSession(sessName, entry.Worktree.Path); err != nil {
 			return errResult("failed to create session: %v", err)
 		}
+		cfg, _ := config.Load(tc.repoRoot)
+		if layout := cfg.DefaultLayout(); layout != nil {
+			_ = tmux.ApplyLayout(sessName, layout)
+		}
+		_ = tmux.ApplyTheme(sessName, cfg.Theme)
 	}
 
 	if err := tmux.SwitchClient(sessName); err != nil {
