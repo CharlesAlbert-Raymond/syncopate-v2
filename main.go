@@ -11,16 +11,32 @@ import (
 
 	"github.com/charles-albert-raymond/synco/internal/config"
 	syncmcp "github.com/charles-albert-raymond/synco/internal/mcp"
+	"github.com/charles-albert-raymond/synco/internal/notify"
 	"github.com/charles-albert-raymond/synco/internal/state"
 	"github.com/charles-albert-raymond/synco/internal/tmux"
 	"github.com/charles-albert-raymond/synco/internal/tui"
 )
 
 func main() {
-	// Handle "mcp" subcommand before flag parsing
-	if len(os.Args) > 1 && os.Args[1] == "mcp" {
-		runMCP(os.Args[2:])
-		return
+	// Handle subcommands before flag parsing
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "mcp":
+			runMCP(os.Args[2:])
+			return
+		case "notify":
+			if err := notify.RunNotify(os.Stdin); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "setup-hooks":
+			if err := notify.SetupHooks(); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
 	}
 
 	sidebarFlag := flag.Bool("sidebar", false, "run in compact sidebar mode (used internally)")

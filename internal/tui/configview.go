@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/charles-albert-raymond/synco/internal/config"
+	"github.com/charles-albert-raymond/synco/internal/notify"
 )
 
 type configViewModel struct {
@@ -121,16 +122,26 @@ func (m configViewModel) View() string {
 	}
 
 	// Notifications
-	if m.config.Notifications != nil {
-		b.WriteString("\n")
-		b.WriteString(headerStyle.Render("Notifications"))
-		b.WriteString("\n")
-		renderField("enabled", fmt.Sprintf("%v", m.config.NotificationsEnabled()))
-		renderField("silence_seconds", fmt.Sprintf("%d", m.config.SilenceThreshold()))
+	b.WriteString("\n")
+	b.WriteString(headerStyle.Render("Notifications"))
+	b.WriteString("\n")
+	renderField("enabled", fmt.Sprintf("%v", m.config.NotificationsEnabled()))
+	if m.config.NotificationsEnabled() {
 		renderField("bell", fmt.Sprintf("%v", m.config.BellEnabled()))
 		renderField("system_notif", fmt.Sprintf("%v", m.config.SystemNotificationEnabled()))
 		renderField("sound", m.config.NotificationSound())
-		renderField("on_silence", m.config.Notifications.OnSilence)
+		if m.config.Notifications != nil && m.config.Notifications.OnSilence != "" {
+			renderField("on_done", m.config.Notifications.OnSilence)
+		}
+	}
+	hookStatus := "not configured"
+	if notify.IsHookConfigured() {
+		hookStatus = "active"
+	}
+	renderField("claude hook", hookStatus)
+	if hookStatus == "not configured" {
+		b.WriteString(emptyStyle.Render("    run: synco setup-hooks"))
+		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")

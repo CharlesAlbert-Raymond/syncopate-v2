@@ -29,7 +29,7 @@ const RootSessionKey = "root"
 // It resolves to the main working tree so that worktrees share the same
 // project name as the root repo.
 func ProjectName(repoRoot string) string {
-	name := filepath.Base(mainWorktreeRoot(repoRoot))
+	name := filepath.Base(MainWorktreeRoot(repoRoot))
 	safe := unsafeChars.ReplaceAllString(name, "-")
 	for strings.Contains(safe, "--") {
 		safe = strings.ReplaceAll(safe, "--", "-")
@@ -37,9 +37,9 @@ func ProjectName(repoRoot string) string {
 	return strings.Trim(safe, "-")
 }
 
-// mainWorktreeRoot returns the path of the main working tree for a repo.
+// MainWorktreeRoot returns the path of the main working tree for a repo.
 // If repoRoot is already the main worktree (or detection fails), it returns repoRoot unchanged.
-func mainWorktreeRoot(repoRoot string) string {
+func MainWorktreeRoot(repoRoot string) string {
 	cmd := exec.Command("git", "-C", repoRoot, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	out, err := cmd.Output()
 	if err != nil {

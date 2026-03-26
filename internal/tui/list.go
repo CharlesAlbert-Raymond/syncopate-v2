@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/charles-albert-raymond/synco/internal/config"
+	"github.com/charles-albert-raymond/synco/internal/notify"
 	"github.com/charles-albert-raymond/synco/internal/state"
 	"github.com/charles-albert-raymond/synco/internal/tmux"
 )
@@ -488,13 +489,13 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen-1] + "…"
 }
 
-// detectSilence checks entries for silence events and returns notification commands.
+// detectSilence checks for signal files written by `synco notify` (triggered
+// by Claude Code's Stop hook) and returns notification commands.
 func (m *listModel) detectSilence() tea.Cmd {
 	if !m.config.NotificationsEnabled() {
 		return nil
 	}
 
-	threshold := m.config.SilenceThreshold()
 	var cmds []tea.Cmd
 
 	for _, entry := range m.entries {
@@ -505,7 +506,7 @@ func (m *listModel) detectSilence() tea.Cmd {
 			continue
 		}
 
-		if entry.IdleSeconds >= threshold {
+		if notify.HasSignal(sess) {
 			m.silentSessions[sess] = true
 			if !m.notified[sess] {
 				m.notified[sess] = true
@@ -531,10 +532,11 @@ func (m *listModel) detectSilence() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// clearNotification removes the notification state for a session.
+// clearNotification removes the notification state and signal file for a session.
 func (m *listModel) clearNotification(session string) {
 	delete(m.silentSessions, session)
 	delete(m.notified, session)
+	notify.ClearSignal(session)
 }
 
 func sendBellCmd() tea.Cmd {
