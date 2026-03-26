@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -27,19 +28,25 @@ func (t *tmuxExecCmd) SetStdout(w io.Writer) { t.cmd.Stdout = w }
 func (t *tmuxExecCmd) SetStderr(w io.Writer) { t.cmd.Stderr = w }
 
 type listModel struct {
-	entries       []state.Entry
-	otherPorts    []state.SessionPorts // non-synco sessions with ports
+	entries            []state.Entry
+	otherPorts         []state.SessionPorts // non-synco sessions with ports
 	cursor             int
 	resetCursorOnNext  bool // reset cursor to current worktree on next entriesMsg
 	width              int
-	height        int
-	message       string
-	msgStyle      lipgloss.Style
-	config        config.Config
+	height             int
+	message            string
+	msgStyle           lipgloss.Style
+	config             config.Config
+	notified           map[string]bool // sessions that already fired a notification
+	silentSessions     map[string]bool // sessions currently in silence (for red dot)
 }
 
 func newListModel() listModel {
-	return listModel{resetCursorOnNext: true}
+	return listModel{
+		resetCursorOnNext: true,
+		notified:          make(map[string]bool),
+		silentSessions:    make(map[string]bool),
+	}
 }
 
 type entriesMsg struct {
@@ -66,7 +73,7 @@ func (m listModel) Update(msg tea.Msg, repoRoot string) (listModel, tea.Cmd) {
 		if m.cursor >= len(m.entries) {
 			m.cursor = max(0, len(m.entries)-1)
 		}
-		return m, nil
+		return m, m.detectSilence()
 
 	case attachMsg:
 		m.message = fmt.Sprintf("Detached from %s", msg.session)
@@ -89,6 +96,7 @@ func (m listModel) Update(msg tea.Msg, repoRoot string) (listModel, tea.Cmd) {
 			}
 			entry := m.entries[m.cursor]
 			sessionName := entry.SessionName
+			m.clearNotification(sessionName)
 
 			// Create session if it doesn't exist
 			if !entry.HasSession {
@@ -140,7 +148,7 @@ func (m listModel) UpdateSidebar(msg tea.Msg, repoRoot string) (listModel, tea.C
 		} else if m.cursor >= len(m.entries) {
 			m.cursor = max(0, len(m.entries)-1)
 		}
-		return m, nil
+		return m, m.detectSilence()
 
 	case attachMsg:
 		m.message = fmt.Sprintf("Switched to %s", msg.session)
@@ -163,6 +171,7 @@ func (m listModel) UpdateSidebar(msg tea.Msg, repoRoot string) (listModel, tea.C
 			}
 			entry := m.entries[m.cursor]
 			sessionName := entry.SessionName
+			m.clearNotification(sessionName)
 
 			// Create the worktree's tmux session if it doesn't exist
 			if !entry.HasSession {
@@ -257,7 +266,9 @@ func (m listModel) ViewCompact(width int) string {
 
 		// Session status dot
 		var dot string
-		if entry.HasSession {
+		if m.silentSessions[entry.SessionName] {
+			dot = notificationDotStyle.Render("●")
+		} else if entry.HasSession {
 			if entry.TmuxSession.Attached {
 				dot = sessionAttachedStyle.Render("●")
 			} else {
@@ -404,7 +415,9 @@ func (m listModel) View() string {
 
 		// Session status
 		var sessStr string
-		if entry.HasSession {
+		if m.silentSessions[entry.SessionName] {
+			sessStr = notificationDotStyle.Render("● idle        ")
+		} else if entry.HasSession {
 			if entry.TmuxSession.Attached {
 				sessStr = sessionAttachedStyle.Render("● attached    ")
 			} else {
@@ -473,4 +486,83 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-1] + "…"
+}
+
+// detectSilence checks entries for silence events and returns notification commands.
+func (m *listModel) detectSilence() tea.Cmd {
+	if !m.config.NotificationsEnabled() {
+		return nil
+	}
+
+	threshold := m.config.SilenceThreshold()
+	var cmds []tea.Cmd
+
+	for _, entry := range m.entries {
+		sess := entry.SessionName
+		if !entry.HasSession || entry.IsCurrent {
+			delete(m.silentSessions, sess)
+			delete(m.notified, sess)
+			continue
+		}
+
+		if entry.IdleSeconds >= threshold {
+			m.silentSessions[sess] = true
+			if !m.notified[sess] {
+				m.notified[sess] = true
+				if m.config.BellEnabled() {
+					cmds = append(cmds, sendBellCmd())
+				}
+				if m.config.SystemNotificationEnabled() {
+					cmds = append(cmds, sendSystemNotificationCmd(entry.BranchShort, m.config.NotificationSound()))
+				}
+				if m.config.Notifications != nil && m.config.Notifications.OnSilence != "" {
+					cmds = append(cmds, runOnSilenceHookCmd(m.config.Notifications.OnSilence, entry.BranchShort, sess))
+				}
+			}
+		} else {
+			delete(m.silentSessions, sess)
+			delete(m.notified, sess)
+		}
+	}
+
+	if len(cmds) == 0 {
+		return nil
+	}
+	return tea.Batch(cmds...)
+}
+
+// clearNotification removes the notification state for a session.
+func (m *listModel) clearNotification(session string) {
+	delete(m.silentSessions, session)
+	delete(m.notified, session)
+}
+
+func sendBellCmd() tea.Cmd {
+	return func() tea.Msg {
+		fmt.Print("\a")
+		return nil
+	}
+}
+
+func sendSystemNotificationCmd(branch, sound string) tea.Cmd {
+	return func() tea.Msg {
+		script := fmt.Sprintf(
+			`display notification "Agent idle on %s" with title "synco" sound name "%s"`,
+			branch, sound,
+		)
+		_ = exec.Command("osascript", "-e", script).Run()
+		return nil
+	}
+}
+
+func runOnSilenceHookCmd(hook, branch, session string) tea.Cmd {
+	return func() tea.Msg {
+		cmd := exec.Command("sh", "-c", hook)
+		cmd.Env = append(os.Environ(),
+			"SYNCO_BRANCH="+branch,
+			"SYNCO_SESSION="+session,
+		)
+		_ = cmd.Run()
+		return nil
+	}
 }

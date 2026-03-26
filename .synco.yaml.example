@@ -22,3 +22,13 @@ auto_delete_branch: false
 aliases:
   main: "Main"
   feature/my-branch: "My Feature"
+
+# Notifications when an agent goes silent (no pane output for N seconds).
+# The sidebar shows a red dot, and optionally plays a sound / system notification.
+# notifications:
+#   enabled: true
+#   silence_seconds: 10       # seconds of no output before triggering
+#   bell: true                # terminal bell (\a)
+#   system_notification: true # macOS Notification Center
+#   sound: "Glass"            # macOS sound name
+#   on_silence: ""            # custom shell command, receives SYNCO_BRANCH and SYNCO_SESSION env vars

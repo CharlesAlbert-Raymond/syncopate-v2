@@ -67,6 +67,9 @@ var (
 	successStyle = lipgloss.NewStyle().
 			Foreground(colorSuccess)
 
+	notificationDotStyle = lipgloss.NewStyle().
+				Foreground(colorDanger)
+
 	inputLabelStyle = lipgloss.NewStyle().
 			Foreground(colorSecondary).
 			Bold(true)
