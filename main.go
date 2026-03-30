@@ -78,17 +78,12 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
-		var found *state.Entry
-		for i, e := range result.Entries {
-			if e.BranchShort == branch {
-				found = &result.Entries[i]
-				break
-			}
-		}
-		if found == nil {
+		entry, ok := state.FindEntry(result.Entries, branch)
+		if !ok {
 			fmt.Fprintf(os.Stderr, "Error: worktree for branch %q not found\n", branch)
 			os.Exit(1)
 		}
+		found := &entry
 		m := tui.NewPopupConfirmModel(*found, repoRoot, cfg)
 		p := tea.NewProgram(m, tea.WithAltScreen())
 		if _, err := p.Run(); err != nil {
@@ -196,7 +191,9 @@ func resolveRepoRoot(flagValue string) string {
 		fmt.Fprintf(os.Stderr, "synco must be run from within a git repository.\n")
 		os.Exit(1)
 	}
-	return root
+	// Always resolve to the main worktree root so that synco launched from a
+	// linked worktree uses the same repo root as the main worktree.
+	return tmux.MainWorktreeRoot(root)
 }
 
 func loadConfig(repoRoot string) config.Config {

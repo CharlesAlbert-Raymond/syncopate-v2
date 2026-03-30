@@ -19,7 +19,7 @@ import (
 // --- Tool definitions ---
 
 var listWorktreesTool = mcp.NewTool("synco_list_worktrees",
-	mcp.WithDescription("List all git worktrees with their tmux session status, listening ports, and git state."),
+	mcp.WithDescription("List all git worktrees with their tmux session status, listening ports, and git state. The main worktree (is_main=true) can be addressed as \"root\" in other tools regardless of its current branch."),
 	mcp.WithReadOnlyHintAnnotation(true),
 	mcp.WithDestructiveHintAnnotation(false),
 )
@@ -33,20 +33,20 @@ var createWorktreeTool = mcp.NewTool("synco_create_worktree",
 
 var deleteWorktreeTool = mcp.NewTool("synco_delete_worktree",
 	mcp.WithDescription("Delete a git worktree and its tmux session. Cannot delete the main worktree."),
-	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree to delete.")),
+	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree to delete. Use \"root\" for the main worktree (will be rejected — cannot delete main).")),
 	mcp.WithBoolean("delete_branch", mcp.Description("Also delete the git branch. Defaults to the auto_delete_branch config value.")),
 	mcp.WithDestructiveHintAnnotation(true),
 )
 
 var switchSessionTool = mcp.NewTool("synco_switch_session",
 	mcp.WithDescription("Switch the tmux client to a worktree's session. Only works when invoked from inside tmux."),
-	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree to switch to.")),
+	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree to switch to. Use \"root\" to always target the main worktree regardless of its current branch.")),
 	mcp.WithDestructiveHintAnnotation(false),
 )
 
 var sendKeysTool = mcp.NewTool("synco_send_keys",
 	mcp.WithDescription("Send a command to a worktree's tmux session (like typing it in the terminal and pressing Enter)."),
-	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree whose session to send keys to.")),
+	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree whose session to send keys to. Use \"root\" for the main worktree.")),
 	mcp.WithString("keys", mcp.Required(), mcp.Description("The command or keystrokes to send.")),
 )
 
@@ -58,7 +58,7 @@ var getConfigTool = mcp.NewTool("synco_get_config",
 
 var sessionOutputTool = mcp.NewTool("synco_session_output",
 	mcp.WithDescription("Capture recent terminal output from a worktree's tmux session pane."),
-	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree whose session output to capture.")),
+	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree whose session output to capture. Use \"root\" for the main worktree.")),
 	mcp.WithNumber("lines", mcp.Description("Number of lines to capture. Defaults to 50.")),
 	mcp.WithReadOnlyHintAnnotation(true),
 	mcp.WithDestructiveHintAnnotation(false),
@@ -66,7 +66,7 @@ var sessionOutputTool = mcp.NewTool("synco_session_output",
 
 var inspectTaskTool = mcp.NewTool("synco_inspect_task",
 	mcp.WithDescription("Read the TICKET.md file from a worktree's directory to understand the task or requirements for that worktree."),
-	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree to inspect.")),
+	mcp.WithString("branch", mcp.Required(), mcp.Description("Branch name of the worktree to inspect. Use \"root\" for the main worktree.")),
 	mcp.WithString("filename", mcp.Description("File to read. Defaults to TICKET.md.")),
 	mcp.WithReadOnlyHintAnnotation(true),
 	mcp.WithDestructiveHintAnnotation(false),
@@ -105,13 +105,10 @@ func numberArg(req mcp.CallToolRequest, name string) (val float64, present bool)
 }
 
 // findEntry looks up a state.Entry by branch name.
+// Delegates to state.FindEntry which supports "root" as a stable identifier
+// for the main worktree.
 func findEntry(entries []state.Entry, branch string) (state.Entry, bool) {
-	for _, e := range entries {
-		if e.BranchShort == branch {
-			return e, true
-		}
-	}
-	return state.Entry{}, false
+	return state.FindEntry(entries, branch)
 }
 
 // resolveSessionName returns the tmux session name for a branch, using state.Gather

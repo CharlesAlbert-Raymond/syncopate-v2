@@ -5,6 +5,26 @@ import (
 	"github.com/charles-albert-raymond/synco/internal/worktree"
 )
 
+// FindEntry looks up an Entry by branch name.
+// Passing "root" returns the main (root) worktree entry regardless of its
+// current branch, giving callers a stable way to address the root worktree.
+func FindEntry(entries []Entry, branch string) (Entry, bool) {
+	if branch == tmux.RootSessionKey {
+		for _, e := range entries {
+			if e.Worktree.IsMain {
+				return e, true
+			}
+		}
+		return Entry{}, false
+	}
+	for _, e := range entries {
+		if e.BranchShort == branch {
+			return e, true
+		}
+	}
+	return Entry{}, false
+}
+
 // Entry is the reconciled view of a worktree and its optional tmux session.
 type Entry struct {
 	Worktree    worktree.Worktree
