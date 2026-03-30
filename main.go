@@ -227,5 +227,7 @@ func findGitRoot() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("not a git repository")
 	}
-	return strings.TrimSpace(string(out)), nil
+	toplevel := strings.TrimSpace(string(out))
+	// Resolve to the main worktree root in case CWD is inside a linked worktree
+	return tmux.MainWorktreeRoot(toplevel), nil
 }
