@@ -139,9 +139,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "ctrl+r":
-			return m, m.rebuildCmd()
+			if !m.list.filtering {
+				return m, m.rebuildCmd()
+			}
 		case "q":
-			if m.currentView == viewList {
+			if m.currentView == viewList && !m.list.filtering {
 				return m, tea.Quit
 			}
 		}
@@ -166,6 +168,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// When filtering, only handle esc here; let list model handle the rest
+		if m.list.filtering {
+			if msg.String() == "esc" {
+				m.list.exitFilter()
+				return m, nil
+			}
+			// Fall through to list Update/UpdateSidebar which handles filter input
+			break
+		}
+
 		switch msg.String() {
 		case "c":
 			if m.sidebarMode {
@@ -175,8 +187,8 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.create = newCreateModel(m.repoRoot, m.config)
 			return m, m.create.branchInput.Focus()
 		case "e":
-			if len(m.list.entries) > 0 {
-				entry := m.list.entries[m.list.cursor]
+			entry, ok := m.list.selectedEntry()
+			if ok {
 				if m.sidebarMode {
 					return m, launchEditTitlePopup(m.repoRoot, entry.BranchShort, entry.Title)
 				}
@@ -186,7 +198,10 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "d":
 			if len(m.list.entries) > 0 {
-				entry := m.list.entries[m.list.cursor]
+				entry, ok := m.list.selectedEntry()
+				if !ok {
+					return m, nil
+				}
 				if entry.Worktree.IsMain {
 					m.list.message = "Cannot delete the main worktree"
 					m.list.msgStyle = errorStyle

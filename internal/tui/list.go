@@ -10,8 +10,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/sahilm/fuzzy"
 
 	"github.com/charles-albert-raymond/synco/internal/config"
 	"github.com/charles-albert-raymond/synco/internal/notify"
@@ -41,13 +43,20 @@ type listModel struct {
 	config             config.Config
 	notified           map[string]bool // sessions that already fired a notification
 	silentSessions     map[string]bool // sessions currently in silence (for red dot)
+	filtering          bool            // true when fuzzy filter input is active
+	filterInput        textinput.Model
+	filteredIndices    []int           // indices into entries that match; nil = show all
 }
 
 func newListModel() listModel {
+	ti := textinput.New()
+	ti.Prompt = ""
+	ti.CharLimit = 64
 	return listModel{
 		resetCursorOnNext: true,
 		notified:          make(map[string]bool),
 		silentSessions:    make(map[string]bool),
+		filterInput:       ti,
 	}
 }
 
@@ -72,24 +81,37 @@ func (m listModel) Update(msg tea.Msg, repoRoot string) (listModel, tea.Cmd) {
 	case entriesMsg:
 		m.entries = msg.entries
 		m.otherPorts = msg.otherPorts
-		m.clampCursor()
+		if m.filtering {
+			m.applyFilter()
+		} else {
+			m.clampCursor()
+		}
 		return m, m.detectSilence()
 
 	case attachMsg:
 		m.message = fmt.Sprintf("Detached from %s", msg.session)
 		m.msgStyle = successStyle
+		m.exitFilter()
 		return m, fetchEntries(repoRoot)
 
 	case tea.KeyMsg:
+		// Filter mode: intercept keys
+		if m.filtering {
+			return m.updateFilter(msg, repoRoot, false)
+		}
+
 		switch {
+		case msg.String() == "/":
+			m.enterFilter()
+			return m, nil
 		case msg.String() == "j" || msg.String() == "down" ||
 			msg.String() == "k" || msg.String() == "up":
 			m.moveCursor(msg.String())
 		case msg.String() == "enter":
-			if len(m.entries) == 0 {
+			entry, ok := m.selectedEntry()
+			if !ok {
 				return m, nil
 			}
-			entry := m.entries[m.cursor]
 			m.clearNotification(entry.SessionName)
 
 			if err := m.ensureSession(entry); err != nil {
@@ -122,6 +144,82 @@ func (m listModel) Update(msg tea.Msg, repoRoot string) (listModel, tea.Cmd) {
 	return m, nil
 }
 
+// updateFilter handles key events while the filter input is active.
+// sidebarMode controls whether enter uses sidebar or classic attach logic.
+func (m listModel) updateFilter(msg tea.KeyMsg, repoRoot string, sidebarMode bool) (listModel, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.exitFilter()
+		return m, nil
+	case "enter":
+		entry, ok := m.selectedEntry()
+		if !ok {
+			return m, nil
+		}
+		m.exitFilter()
+		m.clearNotification(entry.SessionName)
+
+		if err := m.ensureSession(entry); err != nil {
+			m.message = fmt.Sprintf("Error creating session: %v", err)
+			m.msgStyle = errorStyle
+			return m, nil
+		}
+
+		if sidebarMode {
+			if err := tmux.EnsureSidebar(entry.SessionName, repoRoot); err != nil {
+				m.message = fmt.Sprintf("Error adding sidebar: %v", err)
+				m.msgStyle = errorStyle
+				return m, nil
+			}
+			if err := tmux.SwitchClient(entry.SessionName); err != nil {
+				m.message = fmt.Sprintf("Error switching: %v", err)
+				m.msgStyle = errorStyle
+				return m, nil
+			}
+			tmux.FocusMainPane(entry.SessionName)
+			m.message = fmt.Sprintf("→ %s", entry.BranchShort)
+			m.msgStyle = successStyle
+			return m, fetchEntries(repoRoot)
+		}
+
+		if tmux.IsInsideTmux() {
+			if err := tmux.SwitchClient(entry.SessionName); err != nil {
+				m.message = fmt.Sprintf("Error switching: %v", err)
+				m.msgStyle = errorStyle
+				return m, nil
+			}
+			m.message = fmt.Sprintf("Switched to %s", entry.SessionName)
+			m.msgStyle = successStyle
+			return m, fetchEntries(repoRoot)
+		}
+		c := &tmuxExecCmd{cmd: exec.Command("tmux", "attach-session", "-t", entry.SessionName)}
+		return m, tea.Exec(c, func(err error) tea.Msg {
+			if err != nil {
+				return errMsg{err}
+			}
+			return attachMsg{session: entry.SessionName}
+		})
+
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+		return m, nil
+	case "down", "j":
+		visible := m.visibleEntries()
+		if m.cursor < len(visible)-1 {
+			m.cursor++
+		}
+		return m, nil
+	}
+
+	// Forward to text input
+	var cmd tea.Cmd
+	m.filterInput, cmd = m.filterInput.Update(msg)
+	m.applyFilter()
+	return m, cmd
+}
+
 // UpdateSidebar handles input in sidebar mode.
 // On enter: ensure the worktree session has a sidebar, then switch-client to it.
 func (m listModel) UpdateSidebar(msg tea.Msg, repoRoot string) (listModel, tea.Cmd) {
@@ -129,7 +227,9 @@ func (m listModel) UpdateSidebar(msg tea.Msg, repoRoot string) (listModel, tea.C
 	case entriesMsg:
 		m.entries = msg.entries
 		m.otherPorts = msg.otherPorts
-		if m.resetCursorOnNext {
+		if m.filtering {
+			m.applyFilter()
+		} else if m.resetCursorOnNext {
 			m.resetCursorToCurrent()
 			m.resetCursorOnNext = false
 		} else {
@@ -140,18 +240,27 @@ func (m listModel) UpdateSidebar(msg tea.Msg, repoRoot string) (listModel, tea.C
 	case attachMsg:
 		m.message = fmt.Sprintf("Switched to %s", msg.session)
 		m.msgStyle = successStyle
+		m.exitFilter()
 		return m, fetchEntries(repoRoot)
 
 	case tea.KeyMsg:
+		// Filter mode: intercept keys
+		if m.filtering {
+			return m.updateFilter(msg, repoRoot, true)
+		}
+
 		switch {
+		case msg.String() == "/":
+			m.enterFilter()
+			return m, nil
 		case msg.String() == "j" || msg.String() == "down" ||
 			msg.String() == "k" || msg.String() == "up":
 			m.moveCursor(msg.String())
 		case msg.String() == "enter":
-			if len(m.entries) == 0 {
+			entry, ok := m.selectedEntry()
+			if !ok {
 				return m, nil
 			}
-			entry := m.entries[m.cursor]
 			m.clearNotification(entry.SessionName)
 
 			if err := m.ensureSession(entry); err != nil {
@@ -187,9 +296,10 @@ func (m listModel) UpdateSidebar(msg tea.Msg, repoRoot string) (listModel, tea.C
 
 // moveCursor handles j/k/up/down key navigation.
 func (m *listModel) moveCursor(key string) {
+	count := len(m.visibleEntries())
 	switch key {
 	case "j", "down":
-		if m.cursor < len(m.entries)-1 {
+		if m.cursor < count-1 {
 			m.cursor++
 		}
 	case "k", "up":
@@ -227,6 +337,79 @@ func (m *listModel) resetCursorToCurrent() {
 	m.clampCursor()
 }
 
+// enterFilter activates the fuzzy filter input.
+func (m *listModel) enterFilter() {
+	m.filtering = true
+	m.filterInput.SetValue("")
+	m.filterInput.Focus()
+	m.filteredIndices = nil
+}
+
+// exitFilter deactivates the filter and restores the full list.
+func (m *listModel) exitFilter() {
+	m.filtering = false
+	m.filterInput.Blur()
+	m.filterInput.SetValue("")
+	m.filteredIndices = nil
+	m.clampCursor()
+}
+
+// applyFilter recalculates filteredIndices from the current filter text.
+func (m *listModel) applyFilter() {
+	query := m.filterInput.Value()
+	if query == "" {
+		m.filteredIndices = nil
+		m.clampCursor()
+		return
+	}
+
+	// Build searchable strings: branch + alias + title
+	sources := make([]string, len(m.entries))
+	for i, e := range m.entries {
+		s := e.BranchShort
+		if alias := m.config.AliasFor(e.BranchShort); alias != "" {
+			s += " " + alias
+		}
+		if e.Title != "" {
+			s += " " + e.Title
+		}
+		sources[i] = s
+	}
+
+	matches := fuzzy.Find(query, sources)
+	m.filteredIndices = make([]int, len(matches))
+	for i, match := range matches {
+		m.filteredIndices[i] = match.Index
+	}
+
+	// Clamp cursor to filtered list
+	if m.cursor >= len(m.filteredIndices) {
+		m.cursor = max(0, len(m.filteredIndices)-1)
+	}
+}
+
+// visibleEntries returns the entries to display (filtered or all).
+func (m *listModel) visibleEntries() []state.Entry {
+	if m.filteredIndices == nil {
+		return m.entries
+	}
+	result := make([]state.Entry, len(m.filteredIndices))
+	for i, idx := range m.filteredIndices {
+		result[i] = m.entries[idx]
+	}
+	return result
+}
+
+// selectedEntry returns the entry under the cursor, accounting for filtering.
+// Returns the entry and true, or zero value and false if the list is empty.
+func (m *listModel) selectedEntry() (state.Entry, bool) {
+	visible := m.visibleEntries()
+	if m.cursor >= len(visible) || len(visible) == 0 {
+		return state.Entry{}, false
+	}
+	return visible[m.cursor], true
+}
+
 // ViewCompact renders a narrow sidebar-friendly view with per-worktree cards.
 func (m listModel) ViewCompact(width int) string {
 	if width == 0 {
@@ -239,15 +422,29 @@ func (m listModel) ViewCompact(width int) string {
 	// Header
 	parts = append(parts, sidebarHeaderStyle.Render(logoSidebar))
 
-	if len(m.entries) == 0 {
+	// Filter input
+	if m.filtering {
+		filterLine := filterPromptStyle.Render("/") + filterInputStyle.Render(m.filterInput.View())
+		parts = append(parts, helpBoxStyle.Render(filterLine))
+	}
+
+	visible := m.visibleEntries()
+
+	if len(visible) == 0 {
+		msg := "No worktrees."
+		if m.filtering && len(m.entries) > 0 {
+			msg = "No matches."
+		}
 		card := sidebarBoxStyle.
 			Width(boxWidth).
 			BorderForeground(colorMuted).
-			Render(subtitleStyle.Render("No worktrees."))
+			Render(subtitleStyle.Render(msg))
 		parts = append(parts, card)
-		parts = append(parts, helpBoxStyle.Render(
-			lipgloss.NewStyle().Foreground(colorMuted).Render("c create • q quit"),
-		))
+		if !m.filtering {
+			parts = append(parts, helpBoxStyle.Render(
+				lipgloss.NewStyle().Foreground(colorMuted).Render("c create • q quit"),
+			))
+		}
 		return strings.Join(parts, "\n")
 	}
 
@@ -255,7 +452,7 @@ func (m listModel) ViewCompact(width int) string {
 	innerWidth := boxWidth - 4
 
 	// Render a card for each worktree
-	for i, entry := range m.entries {
+	for i, entry := range visible {
 		// Resolve display name: title > alias > branch
 		displayName := entry.Title
 		if displayName == "" {
@@ -373,13 +570,15 @@ func (m listModel) ViewCompact(width int) string {
 	parts = append(parts, helpBoxStyle.Render(
 		lipgloss.NewStyle().Foreground(colorMuted).Render("↵ open · c new · e title")+
 			"\n"+
-			lipgloss.NewStyle().Foreground(colorMuted).Render("d del · ^r build · ? cfg · q"),
+			lipgloss.NewStyle().Foreground(colorMuted).Render("d del · / filter · ^r build"),
 	))
 
 	return strings.Join(parts, "\n")
 }
 
 func (m listModel) View() string {
+	visible := m.visibleEntries()
+
 	if len(m.entries) == 0 {
 		return titleStyle.Render(logoClassic) + "\n" +
 			subtitleStyle.Render("  git worktree orchestrator") + "\n\n" +
@@ -395,6 +594,13 @@ func (m listModel) View() string {
 	b.WriteString(subtitleStyle.Render("  git worktree orchestrator"))
 	b.WriteString("\n\n")
 
+	// Filter input
+	if m.filtering {
+		filterLine := "  " + filterPromptStyle.Render("/ ") + filterInputStyle.Render(m.filterInput.View())
+		b.WriteString(filterLine)
+		b.WriteString("\n\n")
+	}
+
 	// Column header
 	header := fmt.Sprintf("  %-3s %-25s %-14s %-16s %s", "", "BRANCH", "SESSION", "PORTS", "PATH")
 	b.WriteString(lipgloss.NewStyle().Foreground(colorMuted).Bold(true).Render(header))
@@ -402,8 +608,16 @@ func (m listModel) View() string {
 	b.WriteString(lipgloss.NewStyle().Foreground(colorMuted).Render("  " + strings.Repeat("─", 85)))
 	b.WriteString("\n")
 
+	if len(visible) == 0 && m.filtering {
+		b.WriteString("\n")
+		b.WriteString("  " + subtitleStyle.Render("No matches."))
+		b.WriteString("\n")
+		b.WriteString(m.renderHelp())
+		return b.String()
+	}
+
 	// Entries
-	for i, entry := range m.entries {
+	for i, entry := range visible {
 		cursor := "   "
 		if i == m.cursor {
 			cursor = " ▸ "
@@ -471,7 +685,7 @@ func (m listModel) View() string {
 }
 
 func (m listModel) renderHelp() string {
-	help := "  enter attach • c create • e title • d delete • r refresh • ^r rebuild • ? config • q quit"
+	help := "  enter attach • / filter • c create • e title • d delete • r refresh • ^r rebuild • ? config • q quit"
 	return helpStyle.Render(help)
 }
 

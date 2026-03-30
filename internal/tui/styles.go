@@ -110,6 +110,13 @@ var (
 				Background(colorBgAlt).
 				Padding(0, 1)
 
+	filterPromptStyle = lipgloss.NewStyle().
+				Foreground(colorSecondary).
+				Bold(true)
+
+	filterInputStyle = lipgloss.NewStyle().
+				Foreground(colorText)
+
 	// ASCII art logos
 	logoClassic = "" +
 		" ___ _   _ _ __   ___ ___\n" +
