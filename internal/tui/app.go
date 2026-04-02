@@ -49,9 +49,15 @@ type Model struct {
 	RestartRequested bool   // signals main() to re-exec after quit
 }
 
+// projectNameFromConfig returns the config's project_name, or empty for auto-derive.
+func (m Model) projectNameFromConfig() string {
+	return m.config.ProjectName
+}
+
 func NewModel(repoRoot string, cfg config.Config, sourceDir string) Model {
 	lm := newListModel()
 	lm.config = cfg
+	lm.projectName = cfg.ProjectName
 	return Model{
 		currentView: viewList,
 		list:        lm,
@@ -64,6 +70,7 @@ func NewModel(repoRoot string, cfg config.Config, sourceDir string) Model {
 func NewSidebarModel(repoRoot string, cfg config.Config, sourceDir string) Model {
 	lm := newListModel()
 	lm.config = cfg
+	lm.projectName = cfg.ProjectName
 	return Model{
 		currentView: viewList,
 		list:        lm,
@@ -75,7 +82,7 @@ func NewSidebarModel(repoRoot string, cfg config.Config, sourceDir string) Model
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(fetchEntries(m.repoRoot), tickCmd())
+	return tea.Batch(fetchEntries(m.repoRoot, m.projectNameFromConfig()), tickCmd())
 }
 
 func tickCmd() tea.Cmd {
@@ -97,7 +104,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.sidebarMode {
 			m.list.resetCursorOnNext = true
 		}
-		return m, fetchEntries(m.repoRoot)
+		return m, fetchEntries(m.repoRoot, m.projectNameFromConfig())
 
 	case tea.BlurMsg:
 		if m.sidebarMode {
@@ -108,12 +115,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case popupDoneMsg:
-		return m, fetchEntries(m.repoRoot)
+		return m, fetchEntries(m.repoRoot, m.projectNameFromConfig())
 
 	case tickMsg:
 		// Periodic refresh only on the list view (don't interrupt forms)
 		if m.currentView == viewList {
-			return m, tea.Batch(fetchEntries(m.repoRoot), tickCmd())
+			return m, tea.Batch(fetchEntries(m.repoRoot, m.projectNameFromConfig()), tickCmd())
 		}
 		return m, tickCmd()
 
@@ -215,7 +222,7 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		case "r":
-			return m, fetchEntries(m.repoRoot)
+			return m, fetchEntries(m.repoRoot, m.projectNameFromConfig())
 		case "?":
 			m.currentView = viewConfig
 			m.configView = newConfigViewModel(m.config, m.repoRoot)
@@ -252,7 +259,7 @@ func (m Model) updateCreate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.title != "" {
 			m.saveTitle(msg.branch, msg.title)
 		}
-		return m, fetchEntries(m.repoRoot)
+		return m, fetchEntries(m.repoRoot, m.projectNameFromConfig())
 	}
 
 	var cmd tea.Cmd
@@ -272,7 +279,7 @@ func (m Model) updateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.message = "Worktree deleted"
 		m.list.msgStyle = successStyle
 		m.deleteTitle(m.confirm.entry.BranchShort)
-		return m, fetchEntries(m.repoRoot)
+		return m, fetchEntries(m.repoRoot, m.projectNameFromConfig())
 	}
 
 	var cmd tea.Cmd
@@ -302,7 +309,7 @@ func (m Model) updateEditTitle(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.saveTitle(msg.branch, msg.title)
 		m.list.message = "Title updated"
 		m.list.msgStyle = successStyle
-		return m, fetchEntries(m.repoRoot)
+		return m, fetchEntries(m.repoRoot, m.projectNameFromConfig())
 	}
 
 	var cmd tea.Cmd

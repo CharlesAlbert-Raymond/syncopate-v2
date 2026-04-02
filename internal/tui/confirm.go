@@ -46,7 +46,7 @@ func (m confirmModel) Update(msg tea.Msg) (confirmModel, tea.Cmd) {
 			if m.entry.HasSession {
 				if current, err := tmux.CurrentSessionName(); err == nil && current == m.entry.SessionName {
 					deletingSelf = true
-					project := tmux.ProjectName(m.repoRoot)
+					project := tmux.ResolveProjectName(m.repoRoot, m.config.ProjectName)
 					mainSession := tmux.SessionNameFor(project, tmux.RootSessionKey)
 					_ = tmux.NewSession(mainSession, m.repoRoot) // may already exist
 					_ = tmux.EnsureSidebar(mainSession, m.repoRoot)

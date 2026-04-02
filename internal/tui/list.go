@@ -41,6 +41,7 @@ type listModel struct {
 	message            string
 	msgStyle           lipgloss.Style
 	config             config.Config
+	projectName        string          // config-defined project name override
 	notified           map[string]bool // sessions that already fired a notification
 	silentSessions     map[string]bool // sessions currently in silence (for red dot)
 	filtering          bool            // true when fuzzy filter input is active
@@ -66,9 +67,15 @@ type entriesMsg struct {
 }
 type attachMsg struct{ session string }
 
-func fetchEntries(repoRoot string) tea.Cmd {
+func fetchEntries(repoRoot string, projectName ...string) tea.Cmd {
 	return func() tea.Msg {
-		result, err := state.Gather(repoRoot)
+		var result *state.GatherResult
+		var err error
+		if len(projectName) > 0 && projectName[0] != "" {
+			result, err = state.GatherWithOpts(repoRoot, state.GatherOpts{ProjectName: projectName[0]})
+		} else {
+			result, err = state.Gather(repoRoot)
+		}
 		if err != nil {
 			return errMsg{err}
 		}
@@ -92,7 +99,7 @@ func (m listModel) Update(msg tea.Msg, repoRoot string) (listModel, tea.Cmd) {
 		m.message = fmt.Sprintf("Detached from %s", msg.session)
 		m.msgStyle = successStyle
 		m.exitFilter()
-		return m, fetchEntries(repoRoot)
+		return m, fetchEntries(repoRoot, m.projectName)
 
 	case tea.KeyMsg:
 		// Filter mode: intercept keys
@@ -128,7 +135,7 @@ func (m listModel) Update(msg tea.Msg, repoRoot string) (listModel, tea.Cmd) {
 				}
 				m.message = fmt.Sprintf("Switched to %s", entry.SessionName)
 				m.msgStyle = successStyle
-				return m, fetchEntries(repoRoot)
+				return m, fetchEntries(repoRoot, m.projectName)
 			}
 
 			// Outside tmux: use tea.Exec to attach
@@ -179,7 +186,7 @@ func (m listModel) updateFilter(msg tea.KeyMsg, repoRoot string, sidebarMode boo
 			tmux.FocusMainPane(entry.SessionName)
 			m.message = fmt.Sprintf("→ %s", entry.BranchShort)
 			m.msgStyle = successStyle
-			return m, fetchEntries(repoRoot)
+			return m, fetchEntries(repoRoot, m.projectName)
 		}
 
 		if tmux.IsInsideTmux() {
@@ -190,7 +197,7 @@ func (m listModel) updateFilter(msg tea.KeyMsg, repoRoot string, sidebarMode boo
 			}
 			m.message = fmt.Sprintf("Switched to %s", entry.SessionName)
 			m.msgStyle = successStyle
-			return m, fetchEntries(repoRoot)
+			return m, fetchEntries(repoRoot, m.projectName)
 		}
 		c := &tmuxExecCmd{cmd: exec.Command("tmux", "attach-session", "-t", entry.SessionName)}
 		return m, tea.Exec(c, func(err error) tea.Msg {
@@ -241,7 +248,7 @@ func (m listModel) UpdateSidebar(msg tea.Msg, repoRoot string) (listModel, tea.C
 		m.message = fmt.Sprintf("Switched to %s", msg.session)
 		m.msgStyle = successStyle
 		m.exitFilter()
-		return m, fetchEntries(repoRoot)
+		return m, fetchEntries(repoRoot, m.projectName)
 
 	case tea.KeyMsg:
 		// Filter mode: intercept keys
@@ -288,7 +295,7 @@ func (m listModel) UpdateSidebar(msg tea.Msg, repoRoot string) (listModel, tea.C
 
 			m.message = fmt.Sprintf("→ %s", entry.BranchShort)
 			m.msgStyle = successStyle
-			return m, fetchEntries(repoRoot)
+			return m, fetchEntries(repoRoot, m.projectName)
 		}
 	}
 	return m, nil

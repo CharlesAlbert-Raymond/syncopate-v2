@@ -50,12 +50,19 @@ func main() {
 	sidebarFlag := flag.Bool("sidebar", false, "run in compact sidebar mode (used internally)")
 	classicFlag := flag.Bool("classic", false, "run the original full-screen TUI")
 	rootFlag := flag.String("root", "", "repo root path (used internally by sidebar)")
+	projectFlag := flag.String("project", "", "show worktrees across all repos in a named project group")
 	popupCreateFlag := flag.Bool("popup-create", false, "run create form as popup (internal)")
 	popupDeleteFlag := flag.Bool("popup-delete", false, "run delete confirm as popup (internal)")
 	popupEditTitleFlag := flag.Bool("popup-edit-title", false, "run edit title form as popup (internal)")
 	branchFlag := flag.String("branch", "", "branch name for popup operations (internal)")
 	titleFlag := flag.String("title", "", "current title for popup-edit-title (internal)")
 	flag.Parse()
+
+	// Handle --project mode (multi-repo) before resolving single repo root
+	if *projectFlag != "" {
+		launchProjectMode(*projectFlag)
+		return
+	}
 
 	repoRoot := resolveRepoRoot(*rootFlag)
 	cfg := loadConfig(repoRoot)
@@ -143,7 +150,11 @@ func launch(repoRoot string, cfg config.Config) {
 		sidebarWidth = "28"
 	}
 
-	project := tmux.ProjectName(repoRoot)
+	project := tmux.ResolveProjectName(repoRoot, cfg.ProjectName)
+
+	// Migrate old-format sessions (project-branch → project/branch) on launch
+	tmux.MigrateSessionNames(project)
+
 	state := tmux.DetectState(project)
 
 	switch state {
@@ -183,6 +194,32 @@ func launch(repoRoot string, cfg config.Config) {
 	}
 }
 
+func launchProjectMode(projectName string) {
+	// Load global config to find the project definition
+	globalCfg := loadConfig("")
+	repos := globalCfg.ResolveProjectRepos(projectName)
+	if repos == nil {
+		fmt.Fprintf(os.Stderr, "Error: project %q not found in config.\n", projectName)
+		fmt.Fprintf(os.Stderr, "Define it in %s:\n\n", config.GlobalConfigPath())
+		fmt.Fprintf(os.Stderr, "  projects:\n    %s:\n      repos:\n        - ~/code/repo1\n        - ~/code/repo2\n", projectName)
+		os.Exit(1)
+	}
+
+	// Migrate sessions for each repo in the project
+	for _, repo := range repos {
+		repoCfg := loadConfig(repo)
+		project := tmux.ResolveProjectName(repo, repoCfg.ProjectName)
+		tmux.MigrateSessionNames(project)
+	}
+
+	m := tui.NewProjectModel(projectName, repos)
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithReportFocus())
+	if _, err := p.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
 func runMCP(args []string) {
 	mcpFlags := flag.NewFlagSet("mcp", flag.ExitOnError)
 	rootFlag := mcpFlags.String("root", "", "repo root path")
@@ -212,6 +249,13 @@ func resolveRepoRoot(flagValue string) string {
 }
 
 func loadConfig(repoRoot string) config.Config {
+	if repoRoot == "" {
+		cfg, err := config.LoadGlobal()
+		if err != nil {
+			cfg = config.Config{WorktreeDir: ".worktrees"}
+		}
+		return cfg
+	}
 	cfg, err := config.Load(repoRoot)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not load .synco.yaml: %v\n", err)

@@ -39,6 +39,15 @@ func ProjectName(repoRoot string) string {
 	return strings.Trim(safe, "-")
 }
 
+// ResolveProjectName returns the project name for a repo, preferring the
+// user-defined label from config over the directory-derived name.
+func ResolveProjectName(repoRoot, configLabel string) string {
+	if configLabel != "" {
+		return sanitize(configLabel)
+	}
+	return ProjectName(repoRoot)
+}
+
 // MainWorktreeRoot returns the path of the main working tree for a repo.
 // If repoRoot is already the main worktree (or detection fails), it returns repoRoot unchanged.
 func MainWorktreeRoot(repoRoot string) string {
@@ -67,13 +76,30 @@ func sanitize(s string) string {
 }
 
 // SessionNameFor derives a tmux session name from a project name and branch.
+// The root session is named just "{project}" so it sorts first in choose-tree.
+// Branch sessions are "{project}/{branch}" so they group underneath.
+//
+// This produces a natural hierarchy in tmux's session list:
+//
+//	synco              ← root
+//	synco/feat-auth    ← branch worktree
+//	synco/fix-bug      ← branch worktree
 func SessionNameFor(project, branch string) string {
-	return project + "-" + sanitize(branch)
+	if branch == RootSessionKey {
+		return project
+	}
+	return project + "/" + sanitize(branch)
 }
 
-// ListSessions returns tmux sessions prefixed with the project name.
+// IsProjectSession returns true if the session name belongs to the given project.
+func IsProjectSession(name, project string) bool {
+	return name == project || strings.HasPrefix(name, project+"/")
+}
+
+// ListSessions returns tmux sessions belonging to the given project.
+// This includes the root session (named exactly "project") and all branch
+// sessions (named "project/branch").
 func ListSessions(project string) ([]Session, error) {
-	prefix := project + "-"
 	cmd := exec.Command("tmux", "list-sessions", "-F", "#{session_name}\t#{session_attached}")
 	out, err := cmd.Output()
 	if err != nil {
@@ -92,7 +118,7 @@ func ListSessions(project string) ([]Session, error) {
 			continue
 		}
 		name := parts[0]
-		if !strings.HasPrefix(name, prefix) {
+		if !IsProjectSession(name, project) {
 			continue
 		}
 		sessions = append(sessions, Session{
@@ -181,6 +207,64 @@ func SwitchClient(name string) error {
 // SessionExists returns true if a tmux session with the given name exists.
 func SessionExists(name string) bool {
 	return exec.Command("tmux", "has-session", "-t", name).Run() == nil
+}
+
+// MigrateSessionNames renames old-format sessions to the new hierarchical format.
+// Old format: "project-root", "project-branch" (dash separator)
+// New format: "project" (root), "project/branch" (slash separator)
+// Also migrates the intermediate format "project/root" → "project".
+// Returns the number of sessions migrated.
+func MigrateSessionNames(project string) int {
+	cmd := exec.Command("tmux", "list-sessions", "-F", "#{session_name}")
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+
+	oldPrefix := project + "-"
+	migrated := 0
+
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	for scanner.Scan() {
+		name := scanner.Text()
+
+		// Migrate intermediate format: "project/root" → "project"
+		if name == project+"/"+RootSessionKey {
+			newName := project
+			if !SessionExists(newName) {
+				if exec.Command("tmux", "rename-session", "-t", name, newName).Run() == nil {
+					migrated++
+				}
+			}
+			continue
+		}
+
+		// Migrate old dash format: "project-*"
+		if !strings.HasPrefix(name, oldPrefix) {
+			continue
+		}
+		// Skip if it already has the new format (starts with project/)
+		if strings.HasPrefix(name, project+"/") {
+			continue
+		}
+
+		suffix := strings.TrimPrefix(name, oldPrefix)
+		var newName string
+		if suffix == RootSessionKey {
+			// "project-root" → "project"
+			newName = project
+		} else {
+			// "project-branch" → "project/branch"
+			newName = project + "/" + suffix
+		}
+
+		if !SessionExists(newName) {
+			if exec.Command("tmux", "rename-session", "-t", name, newName).Run() == nil {
+				migrated++
+			}
+		}
+	}
+	return migrated
 }
 
 // CapturePaneOutput captures the last N lines of terminal output from a session's pane.

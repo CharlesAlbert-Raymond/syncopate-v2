@@ -132,6 +132,78 @@ func TestNotificationsDefaults(t *testing.T) {
 	}
 }
 
+func TestMergeProjectName(t *testing.T) {
+	global := Config{WorktreeDir: ".wt"}
+	local := Config{ProjectName: "my-project"}
+	got := merge(global, local)
+	if got.ProjectName != "my-project" {
+		t.Errorf("ProjectName = %q, want my-project", got.ProjectName)
+	}
+}
+
+func TestMergeProjects(t *testing.T) {
+	global := Config{
+		Projects: map[string]ProjectDef{
+			"web": {Repos: []string{"~/code/frontend"}},
+		},
+	}
+	local := Config{
+		Projects: map[string]ProjectDef{
+			"api": {Repos: []string{"~/code/backend"}},
+		},
+	}
+	got := merge(global, local)
+
+	if _, ok := got.Projects["web"]; !ok {
+		t.Error("global project 'web' should be preserved")
+	}
+	if _, ok := got.Projects["api"]; !ok {
+		t.Error("local project 'api' should be merged in")
+	}
+}
+
+func TestResolveProjectRepos(t *testing.T) {
+	c := Config{
+		Projects: map[string]ProjectDef{
+			"myapp": {Repos: []string{"~/code/frontend", "/abs/backend"}},
+		},
+	}
+
+	repos := c.ResolveProjectRepos("myapp")
+	if len(repos) != 2 {
+		t.Fatalf("expected 2 repos, got %d", len(repos))
+	}
+	// ~ should be expanded
+	if repos[0] == "~/code/frontend" {
+		t.Error("~ should be expanded in repo path")
+	}
+	// Absolute path should be unchanged
+	if repos[1] != "/abs/backend" {
+		t.Errorf("absolute path should be unchanged, got %q", repos[1])
+	}
+
+	// Unknown project
+	if repos := c.ResolveProjectRepos("unknown"); repos != nil {
+		t.Error("unknown project should return nil")
+	}
+}
+
+func TestExpandRepoPath(t *testing.T) {
+	// Absolute path stays the same
+	if got := ExpandRepoPath("/abs/path"); got != "/abs/path" {
+		t.Errorf("absolute path changed: %q", got)
+	}
+	// Relative path stays the same
+	if got := ExpandRepoPath("relative/path"); got != "relative/path" {
+		t.Errorf("relative path changed: %q", got)
+	}
+	// Tilde should expand (we can't test the exact expansion, but it shouldn't start with ~)
+	got := ExpandRepoPath("~/code/test")
+	if got == "~/code/test" {
+		t.Error("~ should be expanded")
+	}
+}
+
 func TestAliasFor(t *testing.T) {
 	c := Config{Aliases: map[string]string{"main": "trunk"}}
 	if got := c.AliasFor("main"); got != "trunk" {

@@ -123,7 +123,7 @@ func findEntry(entries []state.Entry, branch string) (state.Entry, bool) {
 // resolveSessionName returns the tmux session name for a branch, using state.Gather
 // to correctly handle the root worktree (whose session key is stable, not branch-based).
 func (tc *toolContext) resolveSessionName(branch string) (string, error) {
-	result, err := state.Gather(tc.repoRoot)
+	result, err := tc.gatherState()
 	if err != nil {
 		return "", fmt.Errorf("failed to gather state: %v", err)
 	}
@@ -132,6 +132,15 @@ func (tc *toolContext) resolveSessionName(branch string) (string, error) {
 		return "", fmt.Errorf("no worktree found for branch %q", branch)
 	}
 	return entry.SessionName, nil
+}
+
+// gatherState gathers worktree state using the config's project name if set.
+func (tc *toolContext) gatherState() (*state.GatherResult, error) {
+	cfg, _ := config.Load(tc.repoRoot)
+	return state.GatherWithOpts(tc.repoRoot, state.GatherOpts{
+		ProjectName: cfg.ProjectName,
+		WorktreeDir: cfg.WorktreeDir,
+	})
 }
 
 // --- Handlers ---
@@ -151,7 +160,7 @@ type worktreeInfo struct {
 }
 
 func (tc *toolContext) handleListWorktrees(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	result, err := state.Gather(tc.repoRoot)
+	result, err := tc.gatherState()
 	if err != nil {
 		return errResult("failed to gather worktree state: %v", err)
 	}
@@ -232,7 +241,7 @@ func (tc *toolContext) handleDeleteWorktree(_ context.Context, req mcp.CallToolR
 		return errResult("branch is required")
 	}
 
-	result, err := state.Gather(tc.repoRoot)
+	result, err := tc.gatherState()
 	if err != nil {
 		return errResult("failed to gather state: %v", err)
 	}
@@ -283,7 +292,7 @@ func (tc *toolContext) handleSwitchSession(_ context.Context, req mcp.CallToolRe
 		return errResult("cannot switch session: not inside tmux")
 	}
 
-	result, err := state.Gather(tc.repoRoot)
+	result, err := tc.gatherState()
 	if err != nil {
 		return errResult("failed to gather state: %v", err)
 	}
@@ -444,7 +453,7 @@ func (tc *toolContext) handleInspectTask(_ context.Context, req mcp.CallToolRequ
 		return errResult("branch is required")
 	}
 
-	result, err := state.Gather(tc.repoRoot)
+	result, err := tc.gatherState()
 	if err != nil {
 		return errResult("failed to gather state: %v", err)
 	}

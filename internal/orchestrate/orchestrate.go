@@ -18,7 +18,7 @@ func CreateWorktree(repoRoot string, cfg config.Config, branch, base string) (wt
 		return "", "", fmt.Errorf("failed to create worktree: %w", err)
 	}
 
-	project := tmux.ProjectName(repoRoot)
+	project := tmux.ResolveProjectName(repoRoot, cfg.ProjectName)
 	sessName = tmux.SessionNameFor(project, branch)
 	if err := tmux.NewSessionWithLayout(sessName, wtPath, cfg); err != nil {
 		return wtPath, "", fmt.Errorf("worktree created at %s but tmux session failed: %w", wtPath, err)
@@ -46,7 +46,7 @@ func CreateWorktreeFromExisting(repoRoot string, cfg config.Config, branch strin
 		return "", "", fmt.Errorf("failed to create worktree: %w", err)
 	}
 
-	project := tmux.ProjectName(repoRoot)
+	project := tmux.ResolveProjectName(repoRoot, cfg.ProjectName)
 	sessName = tmux.SessionNameFor(project, localBranch)
 	if err := tmux.NewSessionWithLayout(sessName, wtPath, cfg); err != nil {
 		return wtPath, "", fmt.Errorf("worktree created at %s but tmux session failed: %w", wtPath, err)

@@ -11,12 +11,12 @@ func TestFindEntry(t *testing.T) {
 		{
 			Worktree:    worktree.Worktree{Path: "/repo", Branch: "fix/bar", IsMain: true},
 			BranchShort: "fix/bar",
-			SessionName: "myproject-root",
+			SessionName: "myproject", // root session = just the project name
 		},
 		{
 			Worktree:    worktree.Worktree{Path: "/repo/.worktrees/feat-x", Branch: "feat/x", IsMain: false},
 			BranchShort: "feat/x",
-			SessionName: "myproject-feat-x",
+			SessionName: "myproject/feat-x",
 		},
 	}
 
@@ -26,9 +26,9 @@ func TestFindEntry(t *testing.T) {
 		wantOK  bool
 		wantSes string
 	}{
-		{"root keyword returns main worktree", "root", true, "myproject-root"},
-		{"current root branch matches", "fix/bar", true, "myproject-root"},
-		{"linked worktree branch matches", "feat/x", true, "myproject-feat-x"},
+		{"root keyword returns main worktree", "root", true, "myproject"},
+		{"current root branch matches", "fix/bar", true, "myproject"},
+		{"linked worktree branch matches", "feat/x", true, "myproject/feat-x"},
 		{"unknown branch returns not found", "nonexistent", false, ""},
 	}
 
@@ -51,7 +51,7 @@ func TestFindEntryRootStableAfterBranchChange(t *testing.T) {
 		{
 			Worktree:    worktree.Worktree{Path: "/repo", Branch: "main", IsMain: true},
 			BranchShort: "main",
-			SessionName: "proj-root",
+			SessionName: "proj", // root = just project name
 		},
 	}
 

@@ -1,6 +1,7 @@
 package state
 
 import (
+	"github.com/charles-albert-raymond/synco/internal/config"
 	"github.com/charles-albert-raymond/synco/internal/metadata"
 	"github.com/charles-albert-raymond/synco/internal/tmux"
 	"github.com/charles-albert-raymond/synco/internal/worktree"
@@ -36,6 +37,8 @@ type Entry struct {
 	HasSession  bool
 	Ports     []int // TCP ports being listened on in this session
 	IsCurrent bool  // true if this is the worktree whose tmux session we're in
+	RepoRoot  string // repo root path (set in multi-repo mode)
+	RepoLabel string // display label for the repo (set in multi-repo mode)
 }
 
 // SessionPorts holds port info for a non-synco tmux session.
@@ -50,11 +53,25 @@ type GatherResult struct {
 	OtherPorts    []SessionPorts // non-synco sessions with listening ports
 }
 
+// GatherOpts controls how Gather operates.
+type GatherOpts struct {
+	ProjectName string // override the auto-derived project name
+	WorktreeDir string // override the default ".worktrees" metadata dir
+}
+
 // Gather produces the full list of entries by joining worktrees with tmux sessions,
-// plus port info for all tmux sessions. worktreeDir is used to locate the metadata
-// store; pass "" to use the default ".worktrees".
+// plus port info for all tmux sessions.
 func Gather(repoRoot string, worktreeDir ...string) (*GatherResult, error) {
-	project := tmux.ProjectName(repoRoot)
+	var opts GatherOpts
+	if len(worktreeDir) > 0 && worktreeDir[0] != "" {
+		opts.WorktreeDir = worktreeDir[0]
+	}
+	return GatherWithOpts(repoRoot, opts)
+}
+
+// GatherWithOpts is like Gather but accepts structured options.
+func GatherWithOpts(repoRoot string, opts GatherOpts) (*GatherResult, error) {
+	project := tmux.ResolveProjectName(repoRoot, opts.ProjectName)
 
 	wts, err := worktree.List(repoRoot)
 	if err != nil {
@@ -73,8 +90,8 @@ func Gather(repoRoot string, worktreeDir ...string) (*GatherResult, error) {
 
 	// Load per-worktree metadata (titles etc.)
 	wtDir := ".worktrees"
-	if len(worktreeDir) > 0 && worktreeDir[0] != "" {
-		wtDir = worktreeDir[0]
+	if opts.WorktreeDir != "" {
+		wtDir = opts.WorktreeDir
 	}
 	meta, _ := metadata.Load(repoRoot, wtDir)
 
@@ -127,5 +144,48 @@ func Gather(repoRoot string, worktreeDir ...string) (*GatherResult, error) {
 	return &GatherResult{
 		Entries:    entries,
 		OtherPorts: otherPorts,
+	}, nil
+}
+
+// GatherMulti gathers state across multiple repos in a project group.
+// Each entry is annotated with its repo root and label.
+func GatherMulti(repos []string) (*GatherResult, error) {
+	var allEntries []Entry
+	var allOtherPorts []SessionPorts
+	seenOther := make(map[string]bool)
+
+	for _, repoRoot := range repos {
+		cfg, err := config.Load(repoRoot)
+		if err != nil {
+			continue
+		}
+
+		opts := GatherOpts{
+			ProjectName: cfg.ProjectName,
+			WorktreeDir: cfg.WorktreeDir,
+		}
+		result, err := GatherWithOpts(repoRoot, opts)
+		if err != nil {
+			continue
+		}
+
+		label := tmux.ResolveProjectName(repoRoot, cfg.ProjectName)
+		for i := range result.Entries {
+			result.Entries[i].RepoRoot = repoRoot
+			result.Entries[i].RepoLabel = label
+		}
+		allEntries = append(allEntries, result.Entries...)
+
+		for _, sp := range result.OtherPorts {
+			if !seenOther[sp.Name] {
+				seenOther[sp.Name] = true
+				allOtherPorts = append(allOtherPorts, sp)
+			}
+		}
+	}
+
+	return &GatherResult{
+		Entries:    allEntries,
+		OtherPorts: allOtherPorts,
 	}, nil
 }

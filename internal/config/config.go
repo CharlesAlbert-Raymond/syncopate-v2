@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -37,10 +38,16 @@ type Notifications struct {
 	OnSilence          string `yaml:"on_silence,omitempty"`
 }
 
+// ProjectDef defines a multi-repo project group in the global config.
+type ProjectDef struct {
+	Repos []string `yaml:"repos"`
+}
+
 // Config holds the merged synco configuration.
 type Config struct {
 	WorktreeDir      string            `yaml:"worktree_dir"`
 	SidebarWidth     string            `yaml:"sidebar_width,omitempty"`
+	ProjectName      string            `yaml:"project_name,omitempty"`
 	OnCreate         string            `yaml:"on_create"`
 	OnDestroy        string            `yaml:"on_destroy"`
 	AutoDeleteBranch *bool             `yaml:"auto_delete_branch,omitempty"`
@@ -48,6 +55,7 @@ type Config struct {
 	Theme            *Theme            `yaml:"theme,omitempty"`
 	Layouts          map[string]Layout `yaml:"layouts,omitempty"`
 	Notifications    *Notifications    `yaml:"notifications,omitempty"`
+	Projects         map[string]ProjectDef `yaml:"projects,omitempty"`
 }
 
 // DefaultLayout returns the "default" layout, or nil if none is configured.
@@ -143,15 +151,24 @@ func Load(repoRoot string) (Config, error) {
 	return merged, nil
 }
 
+// LoadGlobal reads only the global config file.
+func LoadGlobal() (Config, error) {
+	cfg, err := loadFile(globalConfigPath())
+	if err != nil && !os.IsNotExist(err) {
+		return Config{}, fmt.Errorf("global config: %w", err)
+	}
+	if cfg.WorktreeDir == "" {
+		cfg.WorktreeDir = ".worktrees"
+	}
+	return cfg, nil
+}
+
 // GlobalConfigPath returns the path to the global config file.
 func GlobalConfigPath() string {
 	return globalConfigPath()
 }
 
 func globalConfigPath() string {
-	if dir, err := os.UserConfigDir(); err == nil {
-		return filepath.Join(dir, "synco", "config.yaml")
-	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "synco", "config.yaml")
 }
@@ -184,6 +201,9 @@ func merge(global, local Config) Config {
 	if local.OnDestroy != "" {
 		out.OnDestroy = local.OnDestroy
 	}
+	if local.ProjectName != "" {
+		out.ProjectName = local.ProjectName
+	}
 	if local.AutoDeleteBranch != nil {
 		out.AutoDeleteBranch = local.AutoDeleteBranch
 	}
@@ -208,6 +228,16 @@ func merge(global, local Config) Config {
 		out.Notifications = local.Notifications
 	}
 
+	// Projects: local overrides global per-key
+	if len(local.Projects) > 0 {
+		if out.Projects == nil {
+			out.Projects = make(map[string]ProjectDef)
+		}
+		for k, v := range local.Projects {
+			out.Projects[k] = v
+		}
+	}
+
 	// Layouts: local overrides global per-key
 	if len(local.Layouts) > 0 {
 		if out.Layouts == nil {
@@ -225,6 +255,30 @@ func merge(global, local Config) Config {
 func (c Config) WorktreePath(repoRoot, branch string) string {
 	safeName := sanitizeBranchForPath(branch)
 	return filepath.Join(repoRoot, c.WorktreeDir, safeName)
+}
+
+// ExpandRepoPath expands ~ to the user's home directory in a repo path.
+func ExpandRepoPath(path string) string {
+	if strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, path[2:])
+		}
+	}
+	return path
+}
+
+// ResolveProjectRepos returns the expanded repo root paths for a named project.
+// Returns nil if the project is not defined.
+func (c Config) ResolveProjectRepos(name string) []string {
+	proj, ok := c.Projects[name]
+	if !ok {
+		return nil
+	}
+	repos := make([]string, len(proj.Repos))
+	for i, r := range proj.Repos {
+		repos[i] = ExpandRepoPath(r)
+	}
+	return repos
 }
 
 func sanitizeBranchForPath(branch string) string {

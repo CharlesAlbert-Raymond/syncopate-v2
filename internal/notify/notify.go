@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/charles-albert-raymond/synco/internal/config"
 	"github.com/charles-albert-raymond/synco/internal/tmux"
 )
 
@@ -48,13 +49,15 @@ func resolveSession(cwd string) (string, error) {
 		return "", err
 	}
 
-	project := tmux.ProjectName(cwd)
+	// Resolve project name from config if available, fall back to dir name
+	mainRoot := tmux.MainWorktreeRoot(cwd)
+	cfg, _ := config.Load(mainRoot)
+	project := tmux.ResolveProjectName(cwd, cfg.ProjectName)
 	if project == "" {
 		return "", fmt.Errorf("not a git repo")
 	}
 
 	// Determine if this is the main worktree
-	mainRoot := tmux.MainWorktreeRoot(cwd)
 	mainRoot, _ = filepath.Abs(mainRoot)
 
 	var sessionKey string
